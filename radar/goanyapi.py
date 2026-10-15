@@ -6,8 +6,8 @@ arrives settled up to yesterday (DataForSEO's worldwide series does not). Key: G
 this source and the radar runs as before.
 
 One credit is $0.001; a related-queries lookup costs 6 (October 2026). Calls take 20 to
-55 seconds and about one in ten fails with a timeout or a 502, so a call is tried twice
-and a failure is reported, never fatal. The service is young (first released August
+55 seconds and may fail with a timeout or a 502. Failed paid requests are not retried
+automatically; failures remain explicit. The service is young (first released August
 2026): treat it as an enhancement, not a dependency.
 """
 from __future__ import annotations
@@ -23,7 +23,7 @@ from . import UA
 
 BASE = os.environ.get("GOANYAPI_BASE_URL", "https://api.goanyapi.com") + "/api/v1/"
 TIMEOUT = 90
-TRIES = 2
+TRIES = 1
 MICROS_PER_CREDIT = 1000
 
 

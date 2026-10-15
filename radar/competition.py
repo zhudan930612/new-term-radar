@@ -54,7 +54,12 @@ def page_one(keyword: str, location: int) -> tuple[dict, int]:
     """{"results": [{"domain", "url", "title", "position", "kind"}], "ads", "features"} and the cost."""
     data, cost = aisa.call([{"call_id": "serp", "tool": SERP_TOOL, "arguments": {"body": [{
         "keyword": keyword, "location_code": location, "language_code": "en", "depth": 10}]}}])
-    items = (((data.get("serp") or {}).get("tasks") or [{}])[0].get("result") or [{}])[0].get("items") or []
+    tasks = (data.get("serp") or {}).get("tasks") or []
+    if not tasks or any(task.get("status_code", 20000) != 20000 or not task.get("result") for task in tasks):
+        raise aisa.AisaError("Search results unavailable")
+    items = tasks[0]["result"][0].get("items")
+    if not isinstance(items, list):
+        raise aisa.AisaError("Search results missing")
     results = [{"domain": re.sub(r"^www\.", "", i.get("domain") or ""), "url": i.get("url") or "", "title": i.get("title") or "",
                 "position": i.get("rank_group")} for i in items if i.get("type") == "organic"][:10]
     for r in results:
@@ -151,13 +156,14 @@ def assess(rows: list[dict], cfg: dict, state: Path) -> tuple[int, list[str]]:
             continue
         rated = [dict(x, dr=dr.get(x["domain"])) for x in p["results"]]
         known = [x for x in rated if x["dr"] is not None]
-        weak = sum(1 for x in known if x["dr"] < c["weak_dr"]) if dr else None
+        weak = sum(1 for x in known if x["dr"] < c["weak_dr"]) if known else None
         weakest = min(known, key=lambda x: (x["dr"], x["position"])) if known else None
         kd = kds.get(r["phrase"])
         kinds = {}
         for x in rated:
             kinds[x["kind"]] = kinds.get(x["kind"], 0) + 1
         r["competition"] = {"verdict": verdict(weak, kd), "weak": weak, "kd": kd, "ads": p["ads"],
+                            "rated_results": len(known), "total_results": len(rated),
                             "kinds": kinds, "features": p["features"],
                             "weakest": {k: weakest[k] for k in ("domain", "dr", "position", "url")} if weakest else None}
         if r["decision"] == "prioritize" and r["competition"]["verdict"] == "crowded":

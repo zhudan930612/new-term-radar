@@ -6,6 +6,7 @@ choose. Secrets are never read from this file; they come from the environment.
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 from . import i18n, terms
@@ -36,6 +37,13 @@ DEFAULTS = {
               "reddit_queries": ["{k} alternative", "{k} frustrating", '"{k}" "doesn\'t work"', "{k} wish there was"]},
     "tutorials": {"max_leads": 3, "videos": 3, "model": "gpt-4.1-mini"},
     "gsc": {},
+    "google_trends": {"enabled": False, "geo": "US"},
+    "demands": {"enabled": True, "free_sources": True, "technology_discovery": False},
+    "research": {"enabled": False, "reddit_queries_per_day": 4, "pain_tasks_per_day": 3,
+                 "videos_per_task": 2, "chrome_extensions_per_task": 2, "chrome_review_pages": 1,
+                 "seed_task_phrases": ["batch document conversion", "invoice data extraction", "subtitle editing"]},
+    "opportunities": {"enabled": False, "model": "qwen3.7-flash", "budget_usd": 0.20,
+                      "candidates_per_day": 2, "problem_queries_per_day": 4, "recheck_days": 7},
 }
 
 
@@ -48,6 +56,30 @@ def load(path: Path) -> dict:
         v = raw.get(k, default)
         cfg[k] = {**default, **v} if isinstance(default, dict) and default and isinstance(v, dict) else v
     cfg["_dir"] = path.resolve().parent
+    gt = cfg["google_trends"]
+    if (not isinstance(gt.get("enabled"), bool) or not isinstance(gt.get("geo"), str) or
+        (gt["geo"] and (len(gt["geo"]) != 2 or not gt["geo"].isascii() or not gt["geo"].isupper() or not gt["geo"].isalpha()))):
+        raise ValueError("Google Trends geo must be a two-letter country code or empty for worldwide")
+    c = cfg["opportunities"]
+    if not isinstance(cfg["demands"], dict) or any(not isinstance(v, bool) for v in cfg["demands"].values()):
+        raise ValueError("Demand options must be booleans")
+    budget = c["budget_usd"]
+    if budget is not None and (isinstance(budget, bool) or not isinstance(budget, (int, float)) or
+                               not math.isfinite(budget) or budget <= 0):
+        raise ValueError("Opportunity budget must be a positive amount or null for balance-limited research")
+    research = cfg["research"]
+    if not isinstance(research.get("enabled"), bool):
+        raise ValueError("research.enabled must be boolean")
+    for key, maximum in {"reddit_queries_per_day": 12, "pain_tasks_per_day": 6, "videos_per_task": 5,
+                         "chrome_extensions_per_task": 5, "chrome_review_pages": 3}.items():
+        if type(research.get(key)) is not int or not 0 <= research[key] <= maximum:
+            raise ValueError("Invalid research sampling limit: " + key)
+    if not isinstance(research.get("seed_task_phrases"), list) or any(
+        not isinstance(v, str) or not v.strip() or len(v) > 80 for v in research["seed_task_phrases"]):
+        raise ValueError("Research seed phrases must be nonempty strings up to 80 characters")
+    if not (1 <= c["candidates_per_day"] <= 6 and
+            1 <= c["problem_queries_per_day"] <= 4 and c["recheck_days"] >= 1):
+        raise ValueError("Invalid opportunities limits")
     i18n.set_lang(cfg["lang"])
     terms.add_stop(cfg["stop_words"])
     return cfg

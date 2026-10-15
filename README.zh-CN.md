@@ -2,6 +2,14 @@
 
 [English](README.md)
 
+**新增 Web 网站机会模式**：先核对真实用户问题，再筛选适合网页解决的任务；支持零推荐、跨日证据池和同日复用。通过 `opportunities.enabled` 启用，详见 [使用说明](docs/web-opportunities.md)。下面保留原版新词发现和趋势分析说明，其中热度、搜索量与营收筛选口径不作为 Web 需求晋级门槛。
+
+新版以任务检索为入口，单用户需求进入跨日证据池；启用 `research.enabled` 后，将 Reddit 求助、定向痛点检索、YouTube 教程评论与可选 Chrome 扩展评论加入每日原文采集。Qwen 做预处理，Codex 自动任务逐条审核全部来源后发布结论。教程、推广、热度或营收不能代替用户请求；零结果展示覆盖范围、待补证任务与处理缺口。
+
+入选且原文/独立性与搜索意图核验通过后，`research-opportunities` 再检查美国搜索首页竞争、保存原始证据并读取营收背景。GoAnyAPI/TrustMRR Key 可选，缺失时记录未知；有营收的相关产品不证明该机会成立或能够盈利。质量优先示例设 `opportunities.budget_usd=null`，取消旧 $0.20 金额上限，询价、费用账本、缓存及余额保护继续生效。完整顺序和命令见 [自动任务与审核交接](docs/web-automation.md)。
+
+配置好 Codex 每日自动任务并启用 `google_trends.enabled` 后，还会对入选机会做免费的 Google Trends 网页验证（美国、近 90 天及 12 个月）；无机会不查询，访问失败保留未知，不转付费。单独运行命令行只生成待验证计划，网页核验由 Codex 自动任务完成，详见 [验证步骤](docs/google-trends.md)。旧版 AIsa 趋势接口实际为 DataForSEO Trends 估算，不能作为 Google Trends 原始数据。
+
 每天一份报告，列出 AI 领域里刚开始冒头的名字：新模型、新产品、新工具、新仓库。在它们最早被说出来的地方抓，而不是等关键词工具里有数据再看。
 
 适合围绕新词做页面、写内容、做产品的人：AI 工具站的 SEO、Newsletter、导航站，或者任何想在「Strata」「Seedance」出现当天就知道、而不是两周后才知道的人。
