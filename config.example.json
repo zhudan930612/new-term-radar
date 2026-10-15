@@ -30,5 +30,22 @@
   "review": {"after_days": 14, "per_day": 5},
   "usecases": {"per_day": 5, "model": "claude-sonnet-4-6", "benchmark": "gpts", "min_volume": 50, "min_daily": 300, "related": true, "related_geo": "US", "country_trends": true, "country_min_volume": 1000, "country_max": 8},
 
-  "gsc": {}
+  "gsc": {},
+  "google_trends": {
+    "enabled": false,
+    "geo": "US"
+  },
+  "opportunities": {
+    "enabled": false,
+    "model": "qwen3.7-flash",
+    "budget_usd": 0.2,
+    "candidates_per_day": 2,
+    "problem_queries_per_day": 4,
+    "recheck_days": 7
+  },
+  "demands": {
+    "enabled": true,
+    "free_sources": true,
+    "technology_discovery": false
+  }
 }

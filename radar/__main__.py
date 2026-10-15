@@ -75,6 +75,12 @@ def cmd_sources(args, cfg: dict, state: Path) -> int:
 
 
 def cmd_daily(args, cfg: dict, state: Path) -> int:
+    if cfg["opportunities"]["enabled"] and args.skip and not {"x", "newsites", "review", "judge", "usecases"} <= args.skip:
+        raise ValueError("Web daily cannot bypass evidence/budget checks; use the complete free-mode skip set")
+    if cfg["opportunities"]["enabled"] and not args.skip:
+        from .opportunity_runner import run_daily, today_local
+        output = Path(args.out) if args.out else Path("reports") / f"{today_local():%Y%m%d}-web-opportunities.md"
+        return run_daily(cfg, state, output, Path(args.from_report) if args.from_report else None)
     weekly = args.new_sites or date.today().weekday() == cfg["new_sites"]["weekday"]
     blocks = {
         "x": run(lambda: sources.x_new(cfg, state), "x" in args.skip),
@@ -157,7 +163,7 @@ def main(argv: list[str] | None = None) -> int:
         return serve_mcp()
     prog = "python -m radar" if __package__ == "radar" else "new-term-radar"  # installed, the package has another name
     p = argparse.ArgumentParser(prog=prog, description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("command", choices=["daily", "sources", "keywords", "leads"])
+    p.add_argument("command", choices=["daily", "sources", "keywords", "leads", "opportunities", "trends", "validate-opportunities", "demand-audit"])
     p.add_argument("names", nargs="*", help="for `keywords`: the names to read")
     p.add_argument("--repo", action="append", default=[], metavar="NAME=OWNER/REPO", help="for `keywords`: a name's GitHub repository")
     p.add_argument("--days", type=int, default=7, help="for `leads`: how far back")
@@ -165,6 +171,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--config", default="config.json")
     p.add_argument("--state", default="state", help="directory for radar.db and the snapshots")
     p.add_argument("--out", help="write the report (Markdown) here; `daily` also writes a .json beside it")
+    p.add_argument("--from-report", help="reuse today's saved discovery JSON for Web opportunities")
+    p.add_argument("--trends-action", choices=["prepare", "claim", "import"], default="prepare")
+    p.add_argument("--result", help="for trends: authoritative daily result.json")
+    p.add_argument("--observations", help="for trends import: saved free-browser observations JSON")
+    p.add_argument("--audit-action", choices=["claim", "sources", "tasks"], default="claim")
+    p.add_argument("--ledger", help="demand ledger path; defaults to STATE/demand-ledger.json")
     p.add_argument("--skip", default="", help="comma-separated: " + ",".join(sorted(SKIPPABLE)))
     p.add_argument("--new-sites", action="store_true", help="run the weekly new-site signal today")
     p.add_argument("--mail", action="store_true", help="mail the report (see radar/notify.py)")
@@ -179,6 +191,30 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "keywords" and not args.names:
         p.error("keywords: give at least one name")
     cfg = config.load(Path(args.config))
+    if args.command == "demand-audit":
+        if not args.result:
+            p.error("demand-audit requires --result")
+        from .demand_audit import command
+        return command(args.audit_action, Path(args.result), Path(args.ledger) if args.ledger else state / "demand-ledger.json",
+                       Path(args.observations) if args.observations else None, Path(args.out) if args.out else None)
+    if args.command == "validate-opportunities":
+        if not args.result:
+            p.error("validate-opportunities requires --result")
+        from .opportunity_validation import command
+        return command(args.trends_action, Path(args.result), Path(args.observations) if args.observations else None,
+                       Path(args.out) if args.out else None, Path(args.ledger) if args.ledger else state / "demand-ledger.json")
+    if args.command == "trends":
+        if not args.result:
+            p.error("trends requires --result pointing to the saved daily result.json")
+        from .google_trends import command
+        return command(args.trends_action, Path(args.result), cfg,
+                       Path(args.observations) if args.observations else None,
+                       Path(args.out) if args.out else None)
+    if args.command == "opportunities":
+        if args.skip:
+            p.error("opportunities cannot skip required evidence checks")
+        cfg["opportunities"]["enabled"] = True
+        return cmd_daily(args, cfg, state)
     if "judge" in args.skip:
         cfg["judge"]["model"] = ""
     state.mkdir(parents=True, exist_ok=True)

@@ -15,6 +15,8 @@ import json
 import os
 import urllib.error
 import urllib.request
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 
 from . import UA
@@ -25,6 +27,16 @@ MAX_CALLS = 20      # the router's own limit per batch
 BATCH = 5           # what call_all sends at once, about 50 s a batch
 TIMEOUT = 240
 CHAT_TIMEOUT = 90
+_REQUEST_SESSION = ContextVar("aisa_request_session", default=None)
+
+
+@contextmanager
+def managed_requests(session):
+    token = _REQUEST_SESSION.set(session)
+    try:
+        yield
+    finally:
+        _REQUEST_SESSION.reset(token)
 
 
 class AisaError(RuntimeError):
@@ -52,6 +64,11 @@ def _no_key() -> str:
 
 
 def _post(url: str, body: dict, timeout: int) -> dict:
+    session = _REQUEST_SESSION.get()
+    return session.request(url, body, timeout, _send) if session else _send(url, body, timeout)
+
+
+def _send(url: str, body: dict, timeout: int) -> dict:
     req = urllib.request.Request(url, data=json.dumps(body).encode(), method="POST", headers={
         "Content-Type": "application/json", "Authorization": f"Bearer {key()}",
         "User-Agent": UA, "x-aisa-source": "new-term-radar"})
@@ -93,8 +110,13 @@ def call_all(calls: list[dict]) -> tuple[dict[str, dict], int]:
 
 
 def chat(model: str, system: str, user: str, max_tokens: int = 1500) -> str:
-    body = _post(CHAT, {"model": model, "temperature": 0, "max_tokens": max_tokens, "messages": [
-        {"role": "system", "content": system}, {"role": "user", "content": user}]}, CHAT_TIMEOUT)
+    payload = {"model": model, "temperature": 0, "max_tokens": max_tokens, "messages": [
+        {"role": "system", "content": system}, {"role": "user", "content": user}]}
+    # These short classification/extraction tasks do not need Qwen's default
+    # reasoning mode, which can exceed the synchronous gateway's wait window.
+    if model == "qwen3.7-flash":
+        payload["enable_thinking"] = False
+    body = _post(CHAT, payload, CHAT_TIMEOUT)
     try:
         return body["choices"][0]["message"]["content"] or ""
     except (KeyError, IndexError, TypeError) as exc:

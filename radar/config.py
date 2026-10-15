@@ -25,6 +25,10 @@ DEFAULTS = {
                  "location_code": 2840, "benchmark": "gpts", "min_daily": 300, "related": True, "related_geo": "US",
                  "country_trends": True, "country_min_volume": 1000, "country_max": 8},
     "gsc": {},
+    "google_trends": {"enabled": False, "geo": "US"},
+    "demands": {"enabled": True, "free_sources": True, "technology_discovery": False},
+    "opportunities": {"enabled": False, "model": "qwen3.7-flash", "budget_usd": 0.20,
+                      "candidates_per_day": 2, "problem_queries_per_day": 4, "recheck_days": 7},
 }
 
 
@@ -37,6 +41,16 @@ def load(path: Path) -> dict:
         v = raw.get(k, default)
         cfg[k] = {**default, **v} if isinstance(default, dict) and default and isinstance(v, dict) else v
     cfg["_dir"] = path.resolve().parent
+    gt = cfg["google_trends"]
+    if (not isinstance(gt.get("enabled"), bool) or not isinstance(gt.get("geo"), str) or
+        (gt["geo"] and (len(gt["geo"]) != 2 or not gt["geo"].isascii() or not gt["geo"].isupper() or not gt["geo"].isalpha()))):
+        raise ValueError("Google Trends geo must be a two-letter country code or empty for worldwide")
+    c = cfg["opportunities"]
+    if not isinstance(cfg["demands"], dict) or any(not isinstance(v, bool) for v in cfg["demands"].values()):
+        raise ValueError("Demand options must be booleans")
+    if not (0 < c["budget_usd"] <= 1 and 1 <= c["candidates_per_day"] <= 6 and
+            1 <= c["problem_queries_per_day"] <= 4 and c["recheck_days"] >= 1):
+        raise ValueError("Invalid opportunities limits")
     i18n.set_lang(cfg["lang"])
     terms.add_stop(cfg["stop_words"])
     return cfg

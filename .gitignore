@@ -13,3 +13,18 @@ __pycache__/
 build/
 dist/
 .DS_Store
+
+# Local credentials, environment, reports and real-source validation data
+.local/
+reports/
+state-free/
+.venv-win/
+.env.*
+!.env.example
+*.dpapi
+/local-*.ps1
+/[0-9][0-9]-*.cmd
+/LOCAL-SETUP.md
+/local-mcp-client.json
+/local-environment.txt
+/tests/fixtures/demand-review-gold.json
