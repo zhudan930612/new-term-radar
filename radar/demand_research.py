@@ -68,9 +68,15 @@ def collect(cfg: dict, today: date, followups: list[dict], selected: list[dict],
         return row
 
     def failed(check, exc):
-        check.update(status="failed", error=type(exc).__name__)
+        sent = getattr(exc, "request_sent", None)
+        check.update(status="not_executed" if sent is False else "failed", error=type(exc).__name__)
+        if sent is not None:
+            check["request_sent"] = sent
+            check["failure_kind"] = getattr(exc, "failure_kind", "unknown")
         # Provider exception bodies can contain request details; retain only their type.
-        errors.append(check["source"] + ": " + type(exc).__name__)
+        detail = (check["status"] + " (" + check["failure_kind"] + ")"
+                  if sent is not None else type(exc).__name__)
+        errors.append(check["source"] + ": " + detail)
 
     def add(check, row):
         text, url = row.get("text"), row.get("url", "")
@@ -179,6 +185,9 @@ def collect(cfg: dict, today: date, followups: list[dict], selected: list[dict],
                     add(check, {"kind": "comment", "text": row.get("content") or row.get("text") or "",
                                 "url": url, "author": _channel(row), "topic": phrase, "task_id": task_id,
                                 "created": row.get("created") or row.get("published_time") or row.get("publishedAt") or "",
+                                **{field: row.get(field) for field in ("author_url", "author_display_name", "identity_status",
+                                   "publication_date", "provider_timestamp", "created_precision", "reply_count", "video_metadata")},
+                                "source_time_note": "采集日期不是评论发表日期；相对时间换算值不代表精确日期，历史评论不代表今天新出现的需求。",
                                 "context_status": "video_and_replies_not_read", "source_record_id": cid})
                 check["status"] = "complete"
             except Exception as exc:

@@ -3,8 +3,9 @@ Trends and whois data through DataForSEO) and its OpenAI-compatible chat endpoin
 name judge). One key: AISA_API_KEY, or the one the AIsa CLI stores when you log in.
 
 The tool router runs a batch's calls one by one, about 10 s each, so batches are kept to
-BATCH calls and the timeout is long. Every call is billed: a failed batch is never
-retried here, so one bad day costs one batch at most.
+BATCH calls and the timeout is long. This transport does not retry requests itself.
+The daily Journal may retry only attributable, explicitly uncharged transient
+failures of allowlisted read-only calls, while preserving each attempt.
 
 Prices seen in October 2026: an account's last 20 posts $0.003, one Trends task $0.0012,
 one whois overview query about $0.13.

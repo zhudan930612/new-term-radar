@@ -41,6 +41,7 @@ def test_semantic_import_can_recover_model_failure_and_merge_true_same_job(tmp_p
     saved = json.loads(path.read_text(encoding="utf-8"))
     assert saved["status"] == "complete" and saved["errors"] == []
     assert len(saved["opportunities"]) == 1
+    assert saved["zero_result_audit"]["task_ids"] == [task_ids[0]]
     assert saved["opportunity_validation"]["status"] == "pending"
     assert saved["google_trends"]["status"] == "waiting_validation"
     task = next(iter(demands.load(ledger_path)["tasks"].values()))

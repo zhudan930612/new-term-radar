@@ -306,7 +306,7 @@ def review(model, ledger, tasks, day, supplied=None):
                     task["status"] = "待补证"
                     task["reason"] = "原文核验曾撤回此版本推荐；需新的独立证据后再评估"
                     continue
-                if row.get("same_job") is not True and len(refs) > 1:
+                if row.get("same_job") is not True and (len(refs) > 1 or task.get("merge_members")):
                     task["status"] = "待拆分核验"
                     if task.get("merge_members"):
                         members = task["merge_members"]
@@ -314,8 +314,13 @@ def review(model, ledger, tasks, day, supplied=None):
                         ledger["tasks"].pop(task["id"])
                         for member in members:
                             member.update(status="待补证", reason="合并复核不通过，已恢复原始任务，等待单独复核")
-                            member.pop("reviewed", None)
+                            for key in ("reviewed", "review_fingerprint", "semantic_reviewed",
+                                        "semantic_fingerprint", "review", "proposal"):
+                                member.pop(key, None)
                             ledger["tasks"][member["id"]] = member
+                        # A source audit may have replaced an atom since the merge snapshot.
+                        # Keep that old member as history rather than reviving invalid evidence.
+                        materialize(ledger)
                         errors.append(task["id"] + ": rejected merge restored; independent review pending")
                     else:
                         errors.append(task["id"] + ": task description does not match its source; repair pending")

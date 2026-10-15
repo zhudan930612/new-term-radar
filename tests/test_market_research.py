@@ -138,7 +138,7 @@ def test_revenue_is_once_and_only_exact_domain_background(setup, tmp_path, monke
 def test_empty_serp_and_missing_kd_are_unknown_not_low_competition(setup, tmp_path, monkeypatch):
     path, cfg, calls = setup
     def empty(url, body, timeout):
-        return {"results": [{"call_id": c["call_id"], "successful": True,
+        return {"results": [{"call_id": c["call_id"], "successful": True, "customer_cost_micros_usd": 0,
                              "data": {"tasks": [{"result": [{"items": []}]}]}} for c in body["calls"]]}
     monkeypatch.setattr(aisa, "_send", empty)
     assert research.command(path, cfg, tmp_path) == 2

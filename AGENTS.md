@@ -44,6 +44,7 @@
 - 权威日报为 `state/web-opportunities/YYYY-MM-DD/result.json` 及同目录 `result.md`；跨日需求池为 `state/demand-ledger.json`。`reports/` 是报告输出，`state-free/` 与正式状态分开。
 - 日报退出码 2 可能表示 `awaiting_audit`。先读 JSON，再按交接文档完成本地审核；不要因非零退出码重新发起采集。
 - 同日结果和请求账本用于防止重复计费。失败、超时或中断先检查结果、锁、缓存和计费记录；不得删除它们绕过保护。状态升级应保留旧副本及费用归属。
+- AIsa 单来源的已知失败只隔离该请求。仅限允许列表中的只读数据请求，且完整回包逐项明确未扣费、可重试的上游临时错误，最多尝试 3 次（包含历史尝试），每次重新询价并保存独立尝试账本；成功缓存继续复用。超时、费用未知、回包无法归属及账户/鉴权错误仍停止后续 AIsa 付费请求，不能为补齐日报重置重试次数。LLM 和 GoAnyAPI 不自动重试。
 - 质量优先配置允许 `opportunities.budget_usd=null` 取消旧金额上限；仍使用 `spending.Journal` 的询价、预留、缓存、余额及失败保护。配置为正数时尊重金额上限，不擅自换付费模型或把免费 Trends 失败转成付费接口。GoAnyAPI/TrustMRR 不包含在 AIsa 账单内，费用与缺口单列；Web 流程内 GoAnyAPI 不自动重试。
 - `research.enabled` 控制新增原文入口，代码缺省 false 保持兼容，启用示例见工作流文档。上游独立 `pains`、`asks`、`tutorials`、`revenue`、`competition` 能力保留；独立命令不受 Web 日报请求账本保护。`sources`、`keywords` 和真实模型回放也可能收费。完整免费跳过集合必须覆盖新增付费来源，且优先于强制运行标志。
 - 日报授权不包含自动充值、开发发布网站、购买域名或联系第三方；这些动作按用户另行授权执行。

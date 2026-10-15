@@ -65,6 +65,38 @@ def test_first_run_uses_configurable_task_seeds_not_product_names(settings, tmp_
     assert queries == ["site:youtube.com split scanned receipts tutorial"]
 
 
+def test_known_reddit_failure_does_not_skip_youtube(settings, tmp_path, monkeypatch):
+    settings["research"].update(pain_tasks_per_day=1)
+    def failed(calls):
+        exc = research.aisa.AisaError("private provider details")
+        exc.request_sent = True
+        exc.failure_kind = "retry_exhausted"
+        raise exc
+    searched = []
+    monkeypatch.setattr(research.aisa, "call", failed)
+    monkeypatch.setattr(research.competition, "page_one", lambda *args:
+                        (searched.append(args) or {"results": []}, 0))
+    _, errors, coverage = research.collect(settings, DAY, [], [], tmp_path)
+    assert searched
+    assert all(q["status"] == "failed" and q["request_sent"] for q in coverage["queries"] if q["source"] == "reddit")
+    assert any(q["source"] == "youtube_search" and q["status"] == "complete" for q in coverage["queries"])
+    assert "private provider details" not in str(errors) + str(coverage)
+
+
+def test_journal_block_is_reported_as_not_executed(settings, tmp_path, monkeypatch):
+    def blocked(calls):
+        exc = research.aisa.AisaError("private provider details")
+        exc.request_sent = False
+        exc.failure_kind = "global_block"
+        raise exc
+    monkeypatch.setattr(research.aisa, "call", blocked)
+    _, errors, coverage = research.collect(settings, DAY, [], [], tmp_path)
+    check = coverage["queries"][0]
+    assert check["status"] == "not_executed" and check["request_sent"] is False
+    assert check["failure_kind"] == "global_block"
+    assert errors == ["reddit: not_executed (global_block)"]
+
+
 def test_youtube_keeps_full_comment_and_never_uses_display_name(settings, tmp_path, monkeypatch):
     settings["research"].update(pain_tasks_per_day=1)
     monkeypatch.setattr(research.competition, "page_one", lambda *a: ({"results": [
@@ -72,11 +104,18 @@ def test_youtube_keeps_full_comment_and_never_uses_display_name(settings, tmp_pa
         {"url": f"https://youtube.com.evil.example/watch?v={VIDEO}"}]}, 7))
     text = "I am doing this step manually for every project.\n" * 80
     monkeypatch.setattr(research.social, "youtube_comments", lambda video: ([
-        {"text": text, "author_name": "Display Only", "likes": 0},
+        {"text": text, "author_name": "Display Only", "likes": 0,
+         "author_url": "https://www.youtube.com/@observed_handle", "author_display_name": "Observed display",
+         "identity_status": "unknown", "publication_date": "4 years ago", "provider_timestamp": "2022-10-15 04:46:16 +00:00",
+         "created_precision": "relative_estimate", "reply_count": 2, "video_metadata": {"title": "Task tutorial", "comments_count": 22}},
         {"text": "Another detailed comment about manually processing files.", "author_id": "UCactualChannel", "likes": 1}], 13))
     rows, errors, coverage = research.collect(settings, DAY, [], [], tmp_path)
     assert errors == [] and len(rows) == 2
     assert rows[0]["text"] == text and rows[0]["author"] == ""
+    assert rows[0]["author_url"].endswith("/@observed_handle") and rows[0]["identity_status"] == "unknown"
+    assert rows[0]["publication_date"] == "4 years ago" and rows[0]["created_precision"] == "relative_estimate"
+    assert rows[0]["reply_count"] == 2 and rows[0]["video_metadata"]["comments_count"] == 22
+    assert "历史评论不代表今天" in rows[0]["source_time_note"]
     assert rows[1]["author"] == "youtube:UCactualChannel"
     assert rows[0]["url"] == rows[1]["url"] == f"https://youtu.be/{VIDEO}"
     assert all(row["kind"] == "comment" for row in rows)

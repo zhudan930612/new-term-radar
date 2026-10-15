@@ -93,7 +93,7 @@ def payload():
 def test_budget_blocks_before_send_and_cache_prevents_rebilling(tmp_path):
     body = payload()
     calls = []
-    send = lambda *args: calls.append(args) or {"choices": [{"finish_reason": "stop"}], "usage": {}}
+    send = lambda *args: calls.append(args) or {"choices": [{"finish_reason": "stop"}], "usage": {"prompt_tokens": 20, "completion_tokens": 5}}
     j = spending.Journal(tmp_path, .001, {"input": 1, "output": 1}, 1)
     j.request(aisa.CHAT, body, 30, send)
     j.request(aisa.CHAT, body, 30, send)
@@ -119,7 +119,7 @@ def test_partial_batch_stops_later_paid_work(tmp_path, monkeypatch):
     monkeypatch.setattr(spending, "quote", lambda calls: .003)
     j = spending.Journal(tmp_path, .2, {"input": .2, "output": .7}, 1)
     with pytest.raises(aisa.AisaError, match="partially failed"):
-        j.request(aisa.ROUTER, {"calls": [{"tool": op.SEARCH}]}, 30, lambda *a: {"results": []})
+        j.request(aisa.ROUTER, {"calls": [{"call_id": "search", "tool": op.SEARCH, "arguments": {}}]}, 30, lambda *a: {"results": []})
     with pytest.raises(aisa.AisaError, match="further paid"):
         j.request(aisa.CHAT, payload(), 30, lambda *a: pytest.fail("must not send"))
 

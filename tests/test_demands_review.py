@@ -135,6 +135,46 @@ def test_nested_rejected_merges_preserve_all_leaf_seeds(monkeypatch):
     assert set(ledger["tasks"]) == leaves, "Rejected pair must not be silently re-merged"
 
 
+@pytest.mark.parametrize("revise_first_atom", [False, True])
+def test_rejected_merge_requeues_valid_members_after_atom_revision(revise_first_atom):
+    """A stale merged title may survive with one ref; restoring it must honor revisions."""
+    ledger = ledger_with_tasks(2)
+    originals = sorted(ledger["tasks"].values(), key=lambda t: t["id"])
+    revised_id, survivor_id = [t["id"] for t in originals]
+    for task in originals:
+        fingerprint = demands.review_fingerprint(task, ledger)
+        task.update(reviewed=DAY.isoformat(), review_fingerprint=fingerprint,
+                    semantic_reviewed=DAY.isoformat(), semantic_fingerprint=fingerprint)
+    demands.cluster("unused", ledger, originals, supplied=[{
+        "ids": [revised_id, survivor_id], "same_job": True,
+        "same_constraints": True, "reason": "Incorrect neighboring-task merge"}])
+    merged = ledger["tasks"][revised_id]
+    if revise_first_atom:
+        sid = originals[0]["source_ids"][0]
+        ledger["sources"][sid]["assessment"]["tasks"][0]["job"] = "Corrected distinct task"
+        demands.materialize(ledger)
+    assert len(demands.references(merged, ledger)) == (1 if revise_first_atom else 2)
+    proposals, errors = demands.review("unused", ledger, [merged], DAY.isoformat(), supplied=[{
+        "id": merged["id"], "same_job": False, "firsthand": True,
+        "independent": False, "web_fit": "unknown", "bounded": False,
+        "reason": "Different tasks; old title does not fit remaining evidence", "proposal": None}])
+    assert not proposals
+    assert any("rejected merge restored" in error for error in errors)
+    assert revised_id in ledger["tasks"] and survivor_id in ledger["tasks"]
+    active = {t["id"] for t in demands.active_tasks(ledger, DAY.isoformat())}
+    due = {t["id"] for t in demand_audit.due_tasks(ledger, DAY.isoformat())}
+    assert len(active) == 2
+    assert active <= due, "Restored valid evidence requires a fresh semantic review"
+    for tid in (revised_id, survivor_id):
+        assert "semantic_reviewed" not in ledger["tasks"][tid]
+        assert "semantic_fingerprint" not in ledger["tasks"][tid]
+        assert "review_fingerprint" not in ledger["tasks"][tid]
+    if revise_first_atom:
+        assert ledger["tasks"][revised_id]["status"] == "提取已修订"
+        assert revised_id not in active | due
+        assert any(t["job"] == "Corrected distinct task" for t in demands.active_tasks(ledger, DAY.isoformat()))
+
+
 def test_unchanged_large_pool_is_not_re_reviewed_every_day(monkeypatch, tmp_path):
     ledger = ledger_with_tasks(30)
     for task in ledger["tasks"].values():

@@ -114,6 +114,7 @@ def command(action: str, result_path: Path, ledger_path: Path, observations: Pat
             spending.save(result_path.parent / ("semantic-" + action + "-observations.json"), payload)
         task_rows = [{**t, "evidence": demands.references(t, ledger)} for t in demands.active_tasks(ledger, result["date"])]
         result["tasks"] = task_rows
+        result["zero_result_audit"]["task_ids"] = [t["id"] for t in task_rows]
         for row in result["dispositions"]:
             entry = ledger["sources"][row["id"]]
             row.update(category=entry.get("assessment", {}).get("category", "analysis_pending"),

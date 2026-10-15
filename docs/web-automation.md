@@ -103,7 +103,7 @@ web_fit为browser/server/native/unknown。只有满足两独立用户、同一�
 
 回读 `market_research`：每项保存竞争信息、缺失字段、SERP 原始结果及 `market-research-evidence/` 证据路径。缺 GoAnyAPI Key 时 DR/广告主/标题竞争保持缺失；KD 或结果缺失不能解释成低竞争。TrustMRR 每轮最多读取一次，缺 Key 标 unavailable；产品营收仅为背景，精确域名重合也不证明同一用户任务或本机会可盈利。GoAnyAPI/TrustMRR 费用与 AIsa 账本分开说明。
 
-该阶段先保存 running，再发起请求；complete/partial/incomplete/running 均不自动重新执行付费查询。partial 通常返回 0，incomplete/running 返回 2，必须读 JSON 的具体缺口，不能因此重跑日报或删除账本。原日报的完成状态与本阶段状态独立；研究数据不修改需求晋级或“无新增”的原结论。AIsa 与当天 `api/requests.json` 共用账本，失败记录仍阻止后续重复付费；Web 流程内 GoAnyAPI 不自动重试。
+该阶段先保存 running，再发起请求；complete/partial/incomplete/running 均不自动重启整阶段。partial 通常返回 0，incomplete/running 返回 2，必须读 JSON 的具体缺口，不能因此重跑日报或删除账本。原日报的完成状态与本阶段状态独立；研究数据不修改需求晋级或“无新增”的原结论。AIsa 与当天 `api/requests.json` 共用账本：单来源的已知失败不阻断其他请求，只有完整回包明确未扣费且可重试的允许列表内只读数据请求才可有限重试（含历史尝试共 3 次）；费用未知或账户问题仍全局保护。逐次请求/回包及计费留档，已成功请求复用缓存，Web 流程内 GoAnyAPI 不自动重试。
 
 然后继续已有 [Google Trends流程](google-trends.md)，只查原文和意图已确认的短语，市场美国、免费网页、失败不改用付费 API。竞争/营收缺 Key 不要求补齐后才能读免费趋势；各阶段的未知分别保留。
 
