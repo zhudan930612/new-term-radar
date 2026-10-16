@@ -9,9 +9,10 @@ import urllib.request
 from datetime import date, datetime, timedelta, timezone
 
 from . import UA, breakout, opportunities
+from .research_queries import followup_summary, query_variants
 
 TASK_QUERIES = [
-    '("spend hours" OR "takes hours" OR "every week") (spreadsheet OR invoice OR report) -filter:retweets',
+    '("I manually" OR "we manually" OR "takes hours") (spreadsheet OR invoice OR report) -filter:retweets',
     '("I need" OR "looking for a tool") (batch OR bulk) (pdf OR images OR files) -filter:retweets',
     '(editing OR subtitles) (manually OR "takes hours" OR "2 hours") -filter:retweets',
     '("copy paste" OR "copying and pasting") (clients OR report OR data) -filter:retweets',
@@ -27,23 +28,26 @@ GITHUB_QUERIES = [
 
 def query_phrase(task: dict) -> str:
     # Stored/model-generated terms cannot inject search operators or change scope.
-    phrase = next((x for x in task.get("search_terms", []) if isinstance(x, str)), "")
-    return " ".join(re.findall(r"[a-zA-Z0-9]+", phrase)[:8])
+    variants = query_variants(task)
+    return variants[0] if variants else ""
 
 
 def collect(selected: list[dict], today: date, query_count: int, followups: list[dict],
-            free_sources: bool = True) -> tuple[list[dict], list[str], dict]:
+            free_sources: bool = True, research_config: dict | None = None) -> tuple[list[dict], list[str], dict]:
     evidence, errors, checks = [], [], []
     seen = set()
 
     def add(row):
-        text = opportunities.clean(row.get("text", ""))
+        text = row.get("text", "")
         url = row.get("url", "")
-        if not text or not opportunities.safe_url(url) or (url, text) in seen:
-            return
+        if not isinstance(text, str) or not text.strip() or not opportunities.safe_url(url) or (url, text) in seen:
+            return False
         seen.add((url, text))
-        evidence.append({**row, "id": f"e{len(evidence)+1}", "text": text[:2200],
-                         "truncated": len(text) > 2200, "observed_on": today.isoformat()})
+        evidence.append({**row, "id": f"e{len(evidence)+1}", "text": text,
+                         "truncated": bool(row.get("truncated", False)), "locally_truncated": False,
+                         "provider_text_completeness": row.get("provider_text_completeness", "unknown"),
+                         "observed_on": today.isoformat()})
+        return True
 
     since = (today - timedelta(days=30)).isoformat()
     # Reserve a discovery slot for targeted second-evidence search; no product gate.
@@ -53,18 +57,27 @@ def collect(selected: list[dict], today: date, query_count: int, followups: list
     queries += [(f'{phrase} ("I" OR "need" OR "manually" OR "problem") -filter:retweets', "定向补证", task["id"])
                 for task, phrase in usable]
     for query, topic, task_id in queries:
-        record = {"source": "x", "query": query + f" since:{since}", "lane": topic, "task_id": task_id}
+        record = {"source": "x", "query": query + f" since:{since}", "lane": topic, "task_id": task_id,
+                  "accepted": 0, "scope": "first returned page; up to 12 eligible posts; not exhaustive"}
         try:
             rows = opportunities.tweets(record["query"])
-            for tw in rows[:12]:
+            record["response_received"] = True
+            considered = 0
+            for tw in rows:
+                considered += 1
                 if tw.get("isRetweet") or tw.get("text", "").startswith("RT @") or (tw.get("author") or {}).get("isAutomated"):
                     continue
-                add({"kind": "post", "text": tw.get("text", ""), "url": tw.get("url", ""),
+                if add({"kind": "post", "text": tw.get("text", ""), "url": tw.get("url", ""),
                      "author": "x:" + (tw.get("author") or {}).get("userName", "").lower(),
-                     "topic": topic, "created": tw.get("createdAt", ""), "context_status": "thread_not_read"})
-            record.update(status="complete", returned=len(rows), considered=min(12, len(rows)))
+                     "topic": topic, "task_id": task_id, "created": tw.get("createdAt", ""), "context_status": "thread_not_read"}):
+                    record["accepted"] += 1
+                if record["accepted"] >= 12:
+                    break
+            record.update(status="complete", returned=len(rows), considered=considered)
         except Exception as exc:
             record.update(status="failed", error=type(exc).__name__)
+            if getattr(exc, "request_sent", None) is not None:
+                record["request_sent"] = exc.request_sent
             errors.append(topic + ": " + type(exc).__name__)
         checks.append(record)
     # Free, task-led cross-repository requests, irrespective of repo age/stars/name.
@@ -114,4 +127,5 @@ def collect(selected: list[dict], today: date, query_count: int, followups: list
         add(row)
     errors += context_errors
     return evidence, errors, {"queries": checks, "task_queries": len(queries), "product_candidates": len(selected),
-                             "successful_followups": [c["task_id"] for c in checks if c.get("task_id") and c["status"] == "complete"]}
+                             "text_policy": "full returned text; provider completeness unknown",
+                             **followup_summary(checks)}

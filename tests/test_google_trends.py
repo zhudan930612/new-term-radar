@@ -119,7 +119,7 @@ def test_blocked_preserves_opportunity_and_never_means_no_demand(tmp_path, cfg, 
     final = json.loads(path.read_text(encoding="utf-8"))
     assert final["google_trends"]["status"] == "partial"
     text = opportunities.render(final)
-    assert "今天发现 1 个" in text and "访问受阻" in text and "今天没有" not in text
+    assert "今天新增 1 个" in text and "访问受阻" in text and "今天没有" not in text
 
 
 def test_visible_chart_without_series_does_not_fabricate_direction(tmp_path, cfg, shortlisted):

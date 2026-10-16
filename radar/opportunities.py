@@ -89,13 +89,15 @@ def collect(selected: list[dict], today: date, query_count: int = 2) -> tuple[li
     evidence, errors, seen_urls, seen_texts = [], [], set(), set()
 
     def add(kind, text, url, author, topic, created=""):
-        text = clean(text)[:2200]
-        if not text or not safe_url(url) or url in seen_urls or text in seen_texts:
+        text = text if isinstance(text, str) else ""
+        if not text.strip() or not safe_url(url) or url in seen_urls or text in seen_texts:
             return
         seen_urls.add(url)
         seen_texts.add(text)
         evidence.append({"id": f"e{len(evidence)+1}", "kind": kind, "text": text,
-                         "url": url, "author": author.lower(), "topic": topic, "created": created})
+                         "url": url, "author": author.lower(), "topic": topic, "created": created,
+                         "truncated": False, "locally_truncated": False,
+                         "provider_text_completeness": "unknown"})
 
     since = (today - timedelta(days=14)).isoformat()
     queries = [(PROBLEM_QUERIES[(today.toordinal() + i) % len(PROBLEM_QUERIES)] + f" since:{since}", "常见任务需求")
@@ -113,7 +115,7 @@ def collect(selected: list[dict], today: date, query_count: int = 2) -> tuple[li
         try:
             data = breakout._get(f"/repos/{repo}/readme")
             body = base64.b64decode(data["content"]).decode("utf-8", "replace")
-            add("official", body[:2200], f"https://github.com/{repo}", "github:" + repo.split("/")[0], row["term"])
+            add("official", body, f"https://github.com/{repo}", "github:" + repo.split("/")[0], row["term"])
         except Exception as exc:
             errors.append(f"{repo} README: {type(exc).__name__}")
         try:
@@ -270,9 +272,12 @@ Default each flag to false when uncertain. Do not accept merely because the prop
 
 def render(result: dict) -> str:
     opportunities = [o for o in result.get("opportunities", []) if o.get("review_status") != "withdrawn"]
+    new_opportunities = [o for o in opportunities if o.get("is_new", True)]
+    continuations = len(opportunities) - len(new_opportunities)
     status = result.get("status")
     conclusion = ("本轮未完成，暂时无法判断是否有合适机会。" if status != "complete" else
-                  f"今天发现 {len(opportunities)} 个值得深入验证的 Web 网站机会。" if opportunities else
+                  f"今天新增 {len(new_opportunities)} 个值得深入验证的 Web 网站机会。" if new_opportunities else
+                  f"本轮没有新增入选机会；继续验证 {continuations} 个已入选方向。" if continuations else
                   "本轮样本中没有新增达到深入验证门槛的 Web 网站机会。")
     lines = [f"# Web 网站机会日报 · {result['date']}", "", conclusion, "",
              "筛选范围：新词线索、公开使用问题和常见任务需求。入选只表示值得验证，不代表已证明市场、排名或盈利。", ""]
@@ -282,7 +287,8 @@ def render(result: dict) -> str:
         if withdrawn.get("review_status") == "withdrawn":
             lines += [f"- 已撤回 **{clean(withdrawn['title'])}**：{clean(withdrawn['withdrawal_reason'])}", ""]
     for i, item in enumerate(opportunities, 1):
-        lines += [f"## {i}. {clean(item['title'])}", ""]
+        suffix = " · 继续验证" if not item.get("is_new", True) else ""
+        lines += [f"## {i}. {clean(item['title'])}{suffix}", ""]
         for label, key in [("用户与场景", "user"), ("要完成的任务", "job"), ("遇到的问题", "pain"),
                            ("当前替代方案", "workaround"), ("为什么适合 Web", "web_advantage"),
                            ("输入", "input"), ("输出", "output"), ("最小网站", "mvp"),
@@ -319,6 +325,18 @@ def render(result: dict) -> str:
                   f"- 本阶段 AIsa 账户余额变化：{market.get('aisa_account_balance_change_usd', '未核实')} USD；与主采集分开记录。",
                   "- GoAnyAPI、TrustMRR 不计入 AIsa 余额差；缺少凭据时对应字段保持未知。", ""]
     lines += render_stage(result)
+    research_plan = result.get("research_plan", {})
+    if research_plan.get("items"):
+        lines += ["## 下一步任务研究", "", "这里包括待补证种子与已入选方向的后续研究；研究优先级不是商业价值评分，仍需以实际证据决定继续或停止。", ""]
+        for item in research_plan["items"]:
+            decision = item.get("research", {})
+            next_action = ('核对现有方案的实际缺口、任务样例和最小实验' if
+                           item.get('local_review_required') == 'qualified_research_due' else '补齐具体任务样例与同任务独立证据')
+            lines += [f"- **{clean(item['job'])}**：{clean(decision.get('gap', '先确认原文、现有替代方式和未解决步骤'))}",
+                      f"  下一步：{clean(decision.get('next_action', next_action))}；有效研究优先级 {item.get('priority_effective', 0)}。"]
+            if item.get('local_review_required'):
+                lines.append(f"  先本地复核：{clean(item['local_review_required'])}；不自动进行付费补证。")
+        lines.append("")
     if result.get("workflow_version") == 2:
         coverage = result.get("coverage", {})
         lines += ["## 需求池与零结果审计", "",
@@ -331,6 +349,12 @@ def render(result: dict) -> str:
                       f"- 用户/场景：{clean(task['user'])} / {clean(task['context'])}",
                       f"- 痛点：{clean(task['pain'])}；约束：{clean(task['constraint'])}",
                       f"- 处理依据：{clean(task['reason'])}"]
+            if task.get("research"):
+                research = task["research"]
+                lines += [f"- 研究状态：{research.get('status', 'active')}；优先级：{research.get('priority', 0)}；"
+                          f"下次复查：{research.get('next_review') or '按证据变化'}",
+                          f"- 尚缺：{clean(research.get('gap', '未知'))}；下一步：{clean(research.get('next_action', '待明确'))}",
+                          f"- 已留存验证记录：{len(research.get('records', []))} 条；不代表市场已验证。"]
             for e in task.get("evidence", []):
                 lines.append(f"- [{e.get('author', '未知')} 原文]({e['url']})：{clean(e['quote'])}")
             lines.append("")
@@ -350,6 +374,16 @@ def render(result: dict) -> str:
     billing = result.get("billing", {})
     if billing.get("charged_usd") is not None:
         lines += [f"- 运行期间账户扣费：${billing['charged_usd']:.6f}；余额：${billing['after']['balance_usd']:.6f}。"]
+    for recovery in result.get("recovery_history", []):
+        bill = recovery.get("billing", {})
+        charge = bill.get("charged_usd")
+        lines.append(f"- 恢复 {recovery.get('number')}：{recovery.get('status')}；本阶段余额变化 "
+                     + (f"${charge:.6f}" if charge is not None else "未核实")
+                     + "，原阶段费用保留；余额变化可能包含并发请求。")
+    external = result.get("external_collection_billing")
+    if external:
+        lines.append(f"- GoAnyAPI 独立账本累计已返回费用：${external.get('reported_usd', 0):.6f}；"
+                     f"另有 {external.get('unknown_charge_requests', 0)} 个请求费用未知。缓存复用不代表本次新增扣费，不计入 AIsa。")
     validation_billing = result.get("migration", {}).get("validation_billing")
     if validation_billing:
         lines += [f"- 本次改造验证额外扣费：${validation_billing['charged_usd']:.6f}；验证后余额：${validation_billing['after']['balance_usd']:.6f}。",

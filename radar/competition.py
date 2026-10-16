@@ -51,7 +51,7 @@ def page_kind(domain: str, url: str, title: str) -> str:
 
 
 def page_one(keyword: str, location: int) -> tuple[dict, int]:
-    """{"results": [{"domain", "url", "title", "position", "kind"}], "ads", "features"} and the cost."""
+    """First-page results with provider title/description, ads/features and cost."""
     data, cost = aisa.call([{"call_id": "serp", "tool": SERP_TOOL, "arguments": {"body": [{
         "keyword": keyword, "location_code": location, "language_code": "en", "depth": 10}]}}])
     tasks = (data.get("serp") or {}).get("tasks") or []
@@ -61,6 +61,7 @@ def page_one(keyword: str, location: int) -> tuple[dict, int]:
     if not isinstance(items, list):
         raise aisa.AisaError("Search results missing")
     results = [{"domain": re.sub(r"^www\.", "", i.get("domain") or ""), "url": i.get("url") or "", "title": i.get("title") or "",
+                "description": i.get("description") or i.get("snippet") or "",
                 "position": i.get("rank_group")} for i in items if i.get("type") == "organic"][:10]
     for r in results:
         r["kind"] = page_kind(r["domain"], r["url"], r["title"])

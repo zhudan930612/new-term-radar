@@ -73,6 +73,7 @@ def load(path: Path) -> dict:
     ledger = json.loads(path.read_text(encoding="utf-8"))
     if ledger.get("version") != VERSION:
         raise ValueError("Unsupported demand ledger version")
+    migrate_fingerprints(ledger)
     return ledger
 
 
@@ -236,9 +237,76 @@ def active_tasks(ledger: dict, day: str) -> list[dict]:
 
 
 def review_fingerprint(task: dict, ledger: dict) -> str:
-    return digest(json.dumps([task["atoms"], [(s, ledger["sources"][s].get("disagreement", False),
-                   ledger["sources"][s].get("analysis_error", ""), ledger["sources"][s].get("assessment"))
-                   for s in task["source_ids"]]], sort_keys=True))
+    evidence = []
+    for sid in sorted(set(task["source_ids"])):
+        entry = ledger["sources"][sid]
+        source, assessment = entry["source"], entry.get("assessment", {})
+        # Identity and provenance changes require a new review even when the
+        # quoted words stay the same. Explanatory prose is not evidence.
+        evidence.append({"id": sid, "source": {k: source.get(k) for k in
+            ("url", "text", "kind", "author", "author_id", "author_url", "source_record_id",
+             "truncated", "context_status", "created", "publication_date", "created_precision")},
+            "category": assessment.get("category"),
+            "tasks": [{k: atom.get(k) for k in (*TASK_FIELDS, "anchor", "search_terms")}
+                      for atom in assessment.get("tasks", [])],
+            "disagreement": bool(entry.get("disagreement")), "analysis_error": entry.get("analysis_error", "")})
+    return "v2:" + digest(json.dumps({"atoms": sorted(task["atoms"]), "evidence": evidence,
+        "task": {k: task.get(k) for k in (*TASK_FIELDS, "search_terms")}}, sort_keys=True, ensure_ascii=False))
+
+
+def migrate_fingerprints(ledger: dict) -> None:
+    """Upgrade in memory, without buying a model review or trusting old identity.
+
+    Legacy fingerprints did not cover identity. Preserve their values and
+    publication/withdrawal fences, and require one local semantic review.
+    """
+    keys = ("review_fingerprint", "semantic_fingerprint", "withdrawn_fingerprint", "shortlisted_fingerprint")
+    for task in ledger["tasks"].values():
+        legacy = {k: task[k] for k in keys if isinstance(task.get(k), str) and not task[k].startswith("v2:")}
+        if not legacy:
+            continue
+        current = review_fingerprint(task, ledger)
+        task.setdefault("fingerprint_compat", []).append({"legacy": legacy, "baseline": current,
+            "semantic_review_required": True, "last_shortlisted": task.get("last_shortlisted"),
+            "semantic_reviewed": task.get("semantic_reviewed")})
+        task["fingerprint_migration_pending"] = True
+        # Never convert a legacy semantic approval into a current one. Local
+        # source/task audit must establish identity again.
+        for key in legacy:
+            if key != "semantic_fingerprint":
+                task[key] = current
+        if "semantic_fingerprint" in legacy:
+            task.pop("semantic_fingerprint", None)
+
+
+def historical_matches(ledger: dict, seeds: list[dict], day: str, limit: int = 18) -> list[dict]:
+    """Bounded lexical recall across the whole active pool, never a merge verdict."""
+    stop = {"unknown", "未知", "tool", "tools", "need", "task", "the", "and", "for", "with", "from", "using", "into"}
+    def terms(task):
+        found = {}
+        for field, weight in (("search_terms", 4), ("job", 3), ("output", 3), ("constraint", 2), ("context", 1)):
+            value = task.get(field, "")
+            text = " ".join(value) if isinstance(value, list) else str(value)
+            tokens = re.findall(r"[a-z0-9]+", text.lower())
+            for chunk in re.findall(r"[\u3400-\u9fff]+", text):
+                tokens.extend(chunk[i:i+2] for i in range(len(chunk)-1))
+            for token in set(tokens) - stop:
+                if len(token) > 1:
+                    found[token] = max(found.get(token, 0), weight)
+        return found
+    seed_ids = {t["id"] for t in seeds}
+    vocabularies = [terms(t) for t in seeds]
+    scored = []
+    for task in active_tasks(ledger, day):
+        if task["id"] in seed_ids:
+            continue
+        candidate = terms(task)
+        score = max((sum(min(candidate[k], vocabulary[k]) for k in candidate.keys() & vocabulary.keys()) /
+                     max(1, (sum(candidate.values()) * sum(vocabulary.values())) ** .5)
+                     for vocabulary in vocabularies), default=0)
+        if score > 0:
+            scored.append((score, task))
+    return [task for _, task in sorted(scored, key=lambda x: (-x[0], x[1]["first_seen"], x[1]["id"]))[:limit]]
 
 
 def review_due(task: dict, ledger: dict, day: str) -> bool:
@@ -268,6 +336,13 @@ def cluster(model: str, ledger: dict, tasks: list[dict], supplied=None) -> None:
     for ids in validated:
         if any(set(pair) <= set(ids) for pair in ledger.get("rejected_groups", [])):
             continue
+        if supplied is None:
+            suggestion = {"ids": ids, "origin": "model", "fingerprints": {
+                tid: review_fingerprint(ledger["tasks"][tid], ledger) for tid in ids}}
+            suggestions = ledger.setdefault("merge_suggestions", [])
+            if suggestion not in suggestions:
+                suggestions.append(suggestion)
+            continue
         target = min((ledger["tasks"][i] for i in ids), key=lambda t: (t["first_seen"], t["id"]))
         members = [copy.deepcopy(ledger["tasks"][i]) for i in ids]
         for tid in ids:
@@ -277,6 +352,12 @@ def cluster(model: str, ledger: dict, tasks: list[dict], supplied=None) -> None:
             target["atoms"] = list(dict.fromkeys(target["atoms"] + old["atoms"]))
             target["source_ids"] = list(dict.fromkeys(target["source_ids"] + old["source_ids"]))
             target.setdefault("merged_ids", []).append(tid)
+            if old.get("confirmed_followup_sources"):
+                target["confirmed_followup_sources"] = list(dict.fromkeys(
+                    target.get("confirmed_followup_sources", []) + old["confirmed_followup_sources"]))
+            for event in old.get("followup_confirmation_history", []):
+                if event not in target.setdefault("followup_confirmation_history", []):
+                    target["followup_confirmation_history"].append(copy.deepcopy(event))
         target["last_seen"] = max(ledger["sources"][s]["last_seen"] for s in target["source_ids"])
         target["status"] = "待复核"
         target["merge_members"] = members
@@ -361,17 +442,34 @@ def review(model, ledger, tasks, day, supplied=None):
     return proposals, errors
 
 
-def process(model: str, evidence: list[dict], ledger_path: Path, day: date) -> dict:
-    ledger, day_str = load(ledger_path), day.isoformat()
-    persist = lambda: spending.save(ledger_path, ledger)
+def _register_sources(ledger: dict, evidence: list[dict], day_str: str) -> list[str]:
     ids = []
     for source in evidence:
         sid = source_id(source)
         entry = ledger["sources"].setdefault(sid, {"source": {**source, "original_id": source.get("id")},
                                                   "first_seen": day_str, "last_seen": day_str})
+        previous_source = entry["source"]
+        identity_fields = ("author", "author_id", "author_url", "source_record_id", "kind", "truncated", "context_status")
+        if any(k in source and source.get(k) != previous_source.get(k) for k in identity_fields):
+            entry.setdefault("source_history", []).append(copy.deepcopy(previous_source))
+            entry["source"] = {**previous_source, **source, "original_id": source.get("id")}
         entry["last_seen"] = day_str
         ids.append(sid)
-    ids = list(dict.fromkeys(ids))
+    return list(dict.fromkeys(ids))
+
+
+def checkpoint_sources(evidence: list[dict], ledger_path: Path, day: date) -> list[str]:
+    """Persist the complete raw scope before preprocessing, without a model call."""
+    ledger = load(ledger_path)
+    ids = _register_sources(ledger, evidence, day.isoformat())
+    spending.save(ledger_path, ledger)
+    return ids
+
+
+def process(model: str, evidence: list[dict], ledger_path: Path, day: date) -> dict:
+    ledger, day_str = load(ledger_path), day.isoformat()
+    persist = lambda: spending.save(ledger_path, ledger)
+    ids = _register_sources(ledger, evidence, day_str)
     new_ids = list(ids)
     # Retry historical unfinished classifications on later daily runs, even when
     # today's search does not return the old URL. Never relabel its observation date.
@@ -393,8 +491,8 @@ def process(model: str, evidence: list[dict], ledger_path: Path, day: date) -> d
     tasks = active_tasks(ledger, day_str)
     # New and least-recently-reviewed tasks get capacity first; overflow stays visible.
     tasks.sort(key=lambda t: (t.get("reviewed", ""), t["first_seen"], t["id"]))
-    due_before = [t for t in tasks if review_due(t, ledger, day_str)]
-    covered = due_before[:18] + [t for t in tasks if t not in due_before][:18]
+    due_before = [t for t in tasks if review_due(t, ledger, day_str) and not t.get("fingerprint_migration_pending")]
+    covered = due_before[:18] + historical_matches(ledger, due_before[:18], day_str)
     errors = []
     try:
         if due_before:
@@ -404,7 +502,7 @@ def process(model: str, evidence: list[dict], ledger_path: Path, day: date) -> d
     persist()
     tasks = active_tasks(ledger, day_str)
     tasks.sort(key=lambda t: (t.get("reviewed", ""), t["first_seen"], t["id"]))
-    due = [t for t in tasks if review_due(t, ledger, day_str)]
+    due = [t for t in tasks if review_due(t, ledger, day_str) and not t.get("fingerprint_migration_pending")]
     proposals, review_errors = review(model, ledger, due[:18], day_str)
     errors += review_errors
     persist()
@@ -426,15 +524,17 @@ def process(model: str, evidence: list[dict], ledger_path: Path, day: date) -> d
         errors.append(f"历史来源修复队列仍有 {len(repair_ids) - 24} 条待后续处理")
     if not new_ids:
         errors.append("本轮没有有效来源样本，不能据此判断没有需求")
+    from .task_research import needs_validation
     ready = [t for t in active_tasks(ledger, day_str) if t["status"] == "值得深入验证" and
              not review_due(t, ledger, day_str) and t.get("proposal") and
-             t.get("shortlisted_fingerprint") != t.get("review_fingerprint")]
+             t.get("semantic_fingerprint") == review_fingerprint(t, ledger) and
+             (t.get("shortlisted_fingerprint") != t.get("review_fingerprint") or needs_validation(t, ledger))]
     ready.sort(key=lambda t: (t.get("last_shortlisted", ""), t["first_seen"], t["id"]))
     proposals = [t["proposal"] for t in ready[:3]]
     # Publishing metadata belongs to the independent semantic audit importer.
     # An interrupted provisional model run must not consume a task's first report.
     persist()
-    return {"workflow_version": VERSION, "opportunities": proposals, "rejected": [], "tasks": task_rows,
+    return {"workflow_version": VERSION, "opportunities": [], "provisional_opportunities": proposals, "rejected": [], "tasks": task_rows,
             "dispositions": dispositions, "analysis_errors": errors,
             "coverage": {"sources": len(ids), "classified": sum(d["category"] != "analysis_pending" for d in dispositions),
                          "audit_complete": len(ids) - len(pending_sources), "unresolved_sources": len(pending_sources),
@@ -447,11 +547,8 @@ def process(model: str, evidence: list[dict], ledger_path: Path, day: date) -> d
 
 
 def followups(ledger_path: Path, day: date, limit: int = 1) -> list[dict]:
-    ledger = load(ledger_path)
-    eligible = [t for t in active_tasks(ledger, day.isoformat()) if t["status"] in {"待补证", "待复核", "网页可行性待验证"}
-                and t.get("last_search", "") < (day - timedelta(days=3)).isoformat()]
-    eligible.sort(key=lambda t: (t.get("last_search", ""), t["first_seen"], t["id"]))
-    return eligible[:limit]
+    from .task_research import rank_followups
+    return rank_followups(load(ledger_path), day, limit)
 
 
 def record_searches(path: Path, ids: list[str], day: date) -> None:

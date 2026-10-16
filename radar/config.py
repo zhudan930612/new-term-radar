@@ -40,6 +40,7 @@ DEFAULTS = {
     "google_trends": {"enabled": False, "geo": "US"},
     "demands": {"enabled": True, "free_sources": True, "technology_discovery": False},
     "research": {"enabled": False, "reddit_queries_per_day": 4, "pain_tasks_per_day": 3,
+                 "query_variants_per_task": 2,
                  "videos_per_task": 2, "chrome_extensions_per_task": 2, "chrome_review_pages": 1,
                  "seed_task_phrases": ["batch document conversion", "invoice data extraction", "subtitle editing"]},
     "opportunities": {"enabled": False, "model": "qwen3.7-flash", "budget_usd": 0.20,
@@ -68,6 +69,8 @@ def load(path: Path) -> dict:
                                not math.isfinite(budget) or budget <= 0):
         raise ValueError("Opportunity budget must be a positive amount or null for balance-limited research")
     research = cfg["research"]
+    from .research_queries import DEFAULT_DISCOVERY_QUERIES
+    research.setdefault("discovery_queries", list(DEFAULT_DISCOVERY_QUERIES))
     if not isinstance(research.get("enabled"), bool):
         raise ValueError("research.enabled must be boolean")
     for key, maximum in {"reddit_queries_per_day": 12, "pain_tasks_per_day": 6, "videos_per_task": 5,
@@ -77,6 +80,13 @@ def load(path: Path) -> dict:
     if not isinstance(research.get("seed_task_phrases"), list) or any(
         not isinstance(v, str) or not v.strip() or len(v) > 80 for v in research["seed_task_phrases"]):
         raise ValueError("Research seed phrases must be nonempty strings up to 80 characters")
+    if (type(research.get("query_variants_per_task")) is not int or
+            not 1 <= research["query_variants_per_task"] <= 2):
+        raise ValueError("Research query variants must be 1 or 2")
+    if (not isinstance(research["discovery_queries"], list) or not research["discovery_queries"] or
+            len(research["discovery_queries"]) > 24 or any(not isinstance(v, str) or not v.strip() or
+            len(v) > 240 for v in research["discovery_queries"])):
+        raise ValueError("Research discovery queries must contain 1 to 24 bounded strings")
     if not (1 <= c["candidates_per_day"] <= 6 and
             1 <= c["problem_queries_per_day"] <= 4 and c["recheck_days"] >= 1):
         raise ValueError("Invalid opportunities limits")

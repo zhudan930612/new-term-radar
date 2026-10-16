@@ -11,6 +11,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse
 
 from . import aisa, competition, goanyapi, opportunities, social
+from .research_queries import DEFAULT_DISCOVERY_QUERIES, followup_summary, query_variants, relevance, task_constraint_context
 
 SEED_TASKS = ["batch document conversion", "invoice data extraction", "subtitle editing"]
 ID = re.compile(r"[A-Za-z0-9_-]+")
@@ -102,10 +103,12 @@ def collect(cfg: dict, today: date, followups: list[dict], selected: list[dict],
             raise aisa.AisaError("Research response absent")
         return response["research"]
 
-    def reddit(query, lane, task_id=""):
-        check = record("reddit", query, lane=lane, task_id=task_id, window="month")
+    def reddit(query, lane, task_id="", task_phrase="", variant=0, constraint_context=""):
+        check = record("reddit", query, lane=lane, task_id=task_id, window="month",
+                       variant=variant, relevant_candidates=0)
         try:
             data = call(social.REDDIT_TOOL, {"query": query, "sort": "new", "timeframe": "month", "trim": "false"})
+            check["response_received"] = True
             rows = data.get("posts")
             if data.get("success") is False or not isinstance(rows, list):
                 raise ValueError("Reddit posts missing")
@@ -125,44 +128,79 @@ def collect(cfg: dict, today: date, followups: list[dict], selected: list[dict],
                 author = row.get("author")
                 author = author.get("name") if isinstance(author, dict) else author
                 text = "\n".join(x for x in (row.get("title"), row.get("selftext")) if isinstance(x, str) and x)
+                if task_phrase and relevance(task_phrase, text, constraint_context=constraint_context)["candidate"]:
+                    check["relevant_candidates"] += 1
                 add(check, {"kind": "post", "text": text, "url": url,
                             "author": _identity("reddit", author.lower() if isinstance(author, str) else ""),
                             "topic": lane, "task_id": task_id, "created": row.get("created_utc", ""),
                             "context_status": "thread_not_read", "source_record_id": row.get("id") or row.get("post_id") or ""})
-            check["status"] = "complete"
+            check.update(status="complete")
         except Exception as exc:
             failed(check, exc)
+        return check
 
-    patterns = [p for p in cfg.get("asks", {}).get("patterns", []) if isinstance(p, str) and p.strip()]
-    for i in range(min(c.get("reddit_queries_per_day", 4), len(patterns))):
-        reddit(patterns[(today.toordinal() + i) % len(patterns)], "Reddit task discovery")
+    patterns = [p for p in c.get("discovery_queries", DEFAULT_DISCOVERY_QUERIES) if isinstance(p, str) and p.strip()]
+    daily = min(c.get("reddit_queries_per_day", 4), len(patterns))
+    for i in range(daily):
+        # Rotate a whole daily block rather than repeating three of yesterday's four.
+        reddit(patterns[(today.toordinal() * daily + i) % len(patterns)], "Reddit task discovery")
     if not patterns:
         record("reddit", "", status="unavailable", reason="No discovery patterns configured")
 
-    tasks, phrases = [], set()
+    tasks, phrases, task_ids = [], set(), set()
     for task in followups:
-        phrase = next((_phrase(x) for x in task.get("search_terms", []) if _phrase(x)), "")
-        if phrase and phrase.lower() not in phrases:
-            tasks.append((phrase, str(task.get("id") or ""), "followup"))
+        variants = query_variants(task)
+        phrase = variants[0] if variants else ""
+        task_id = str(task.get("id") or "")
+        if phrase and phrase.lower() not in phrases and (not task_id or task_id not in task_ids):
+            constraints = task_constraint_context(task)
+            tasks.append((phrase, task_id, "followup", variants, constraints))
             phrases.add(phrase.lower())
+            task_ids.add(task_id)
     if not tasks:
         seeds = c.get("seed_task_phrases", SEED_TASKS)
         for seed in seeds:
             phrase = _phrase(seed)
             if phrase and phrase.lower() not in phrases:
-                tasks.append((phrase, "", "discovery_seed"))
+                tasks.append((phrase, "", "discovery_seed", query_variants({"search_terms": [phrase]}), seed))
                 phrases.add(phrase.lower())
     tasks = tasks[:c.get("pain_tasks_per_day", 3)]
     video_seen, extension_seen = set(), set()
-    for phrase, task_id, basis in tasks:
-        reddit(f'"{phrase}" (frustrating OR manually OR "does not work" OR "wish")', "Task pain discovery", task_id)
+    for phrase, task_id, basis, variants, constraints in tasks:
+        # Each alternate is a distinct bounded search, never a retry of a failed request.
+        # Keep all returned raw text, including lexical mismatches, for semantic review.
+        for index, variant in enumerate(variants[:min(2, max(1, c.get("query_variants_per_task", 2)))]):
+            check = reddit(variant, "Task pain discovery", task_id, phrase, index, constraints)
+            if check["status"] != "complete" or check["relevant_candidates"] > 0:
+                break
         check = record("youtube_search", f"site:youtube.com {phrase} tutorial", task_id=task_id, basis=basis)
         try:
             page, spent = competition.page_one(check["query"], cfg.get("competition", {}).get("location_code", 2840))
+            check["response_received"] = True
             cost += spent
             results = page["results"]
-            videos = list(dict.fromkeys(v for row in results if (v := _video(row.get("url", "")))))
-            check.update(status="complete", returned=len(results), matched=len(videos))
+            videos, candidates, matched = [], [], set()
+            for row in results:
+                video = _video(row.get("url", ""))
+                if not video or video in matched:
+                    continue
+                matched.add(video)
+                title = row.get("title") if isinstance(row.get("title"), str) else ""
+                summary = row.get("description") or row.get("snippet") or ""
+                summary = summary if isinstance(summary, str) else ""
+                match = relevance(phrase, title + " " + summary, constraint_context=constraints, title=title)
+                if not (title + summary).strip():
+                    match.update(candidate=False, reason="title/summary unavailable; manual context review required before paid comments")
+                candidates.append({"video_id": video, "url": row.get("url"), "title": title,
+                                   "summary": summary, "status": "candidate" if match["candidate"] else "skipped",
+                                   **match})
+                if match["candidate"]:
+                    videos.append(video)
+            check.update(status="complete", returned=len(results), matched=len(matched),
+                         relevant_candidates=len(videos), candidates=candidates,
+                         relevance="lexical candidate triage only; not confirmed same-task evidence")
+            if not videos:
+                check["reason"] = "No title/summary candidate selected; no conclusion about absence of user demand"
         except Exception as exc:
             failed(check, exc)
             videos = []
@@ -174,6 +212,7 @@ def collect(cfg: dict, today: date, followups: list[dict], selected: list[dict],
                            scope="one top-level comment page; replies not read")
             try:
                 rows, spent = social.youtube_comments(video)
+                check["response_received"] = True
                 cost += spent
                 if not isinstance(rows, list):
                     raise ValueError("YouTube comments missing")
@@ -189,7 +228,7 @@ def collect(cfg: dict, today: date, followups: list[dict], selected: list[dict],
                                    "publication_date", "provider_timestamp", "created_precision", "reply_count", "video_metadata")},
                                 "source_time_note": "采集日期不是评论发表日期；相对时间换算值不代表精确日期，历史评论不代表今天新出现的需求。",
                                 "context_status": "video_and_replies_not_read", "source_record_id": cid})
-                check["status"] = "complete"
+                check.update(status="complete")
             except Exception as exc:
                 failed(check, exc)
 
@@ -199,6 +238,7 @@ def collect(cfg: dict, today: date, followups: list[dict], selected: list[dict],
             continue
         try:
             results, spent = goanyapi.serp(check["query"])
+            check["response_received"] = True
             cost += spent
             extensions = []
             for row in results:
@@ -220,6 +260,7 @@ def collect(cfg: dict, today: date, followups: list[dict], selected: list[dict],
                                scope="bounded review pages; shared extension URL cannot establish independent evidence")
                 try:
                     data, spent = goanyapi.call("chrome-web-store-reviews", extensionId=extension, **({"cursor": cursor} if cursor else {}))
+                    check["response_received"] = True
                     cost += spent
                     rows = data.get("comments")
                     if not isinstance(rows, list):
@@ -243,4 +284,4 @@ def collect(cfg: dict, today: date, followups: list[dict], selected: list[dict],
                     break
     return evidence, errors, {"queries": checks, "cost_micros": cost, "research_tasks": len(tasks),
                               "product_context_count": len(selected), "text_policy": "full API text; provider completeness unknown",
-                              "successful_followups": sorted({r["task_id"] for r in checks if r.get("task_id") and r["status"] == "complete"})}
+                              **followup_summary(checks)}

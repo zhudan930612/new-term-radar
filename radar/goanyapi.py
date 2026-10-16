@@ -13,6 +13,8 @@ automatically; failures remain explicit. The service is young (first released Au
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import date, datetime, timezone
 import os
 import urllib.error
@@ -25,6 +27,16 @@ BASE = os.environ.get("GOANYAPI_BASE_URL", "https://api.goanyapi.com") + "/api/v
 TIMEOUT = 90
 TRIES = 1
 MICROS_PER_CREDIT = 1000
+_REQUEST_SESSION = ContextVar('goany_request_session', default=None)
+
+
+@contextmanager
+def managed_requests(session):
+    token = _REQUEST_SESSION.set(session)
+    try:
+        yield
+    finally:
+        _REQUEST_SESSION.reset(token)
 
 
 class GoAnyError(RuntimeError):
@@ -37,6 +49,11 @@ def key() -> str:
 
 def call(path: str, **params) -> tuple[dict, int]:
     """One GET. Returns (data, cost in micro-USD)."""
+    session = _REQUEST_SESSION.get()
+    return session.request(BASE, path, params, _send) if session else _send(path, **params)
+
+
+def _send(path: str, **params) -> tuple[dict, int]:
     req = urllib.request.Request(BASE + path + "?" + urllib.parse.urlencode(params), headers={
         "authorization": f"Bearer {key()}", "accept": "application/json", "user-agent": UA})
     error = ""

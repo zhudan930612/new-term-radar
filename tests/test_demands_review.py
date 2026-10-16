@@ -46,10 +46,8 @@ def test_rejected_merge_restores_original_task_seeds(monkeypatch):
     """A skeptical same_job=false review must not strand distinct seeds in one cluster."""
     ledger = ledger_with_tasks()
     original = set(ledger["tasks"])
-    outputs = iter([{"groups": [{"ids": sorted(original), "same_job": True,
-                                  "same_constraints": True, "reason": "Model made a bad merge"}]}])
-    monkeypatch.setattr(demands.aisa, "chat", lambda *a, **kw: json.dumps(next(outputs)))
-    demands.cluster("test", ledger, list(ledger["tasks"].values()))
+    demands.cluster(None, ledger, list(ledger["tasks"].values()), supplied=[{"ids": sorted(original), "same_job": True,
+                                  "same_constraints": True, "reason": "Reviewer made a bad merge"}])
     reviews = [{"id": t["id"], "same_job": False, "firsthand": True,
                 "independent": True, "web_fit": "browser", "bounded": True,
                 "reason": "These are different jobs", "proposal": None}
@@ -164,8 +162,7 @@ def test_nested_rejected_merges_preserve_all_leaf_seeds(monkeypatch):
     def merge(ids):
         payload = {"groups": [{"ids": ids, "same_job": True, "same_constraints": True,
                                 "reason": "Synthetic proposed merge"}]}
-        monkeypatch.setattr(demands.aisa, "chat", lambda *a, **kw: json.dumps(payload))
-        demands.cluster("test", ledger, list(ledger["tasks"].values()))
+        demands.cluster(None, ledger, list(ledger["tasks"].values()), supplied=payload["groups"])
 
     def reject(task):
         payload = {"reviews": [{"id": task["id"], "same_job": False,

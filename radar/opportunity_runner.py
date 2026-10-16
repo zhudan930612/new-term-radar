@@ -7,7 +7,7 @@ import shutil
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import aisa, breakout, demands, demand_sources, google_trends, opportunities, opportunity_validation, report, sources, spending, store
+from . import aisa, breakout, demands, demand_sources, daily_recovery, goanyapi, google_trends, opportunities, opportunity_validation, report, sources, spending, store
 
 
 def today_local():
@@ -49,7 +49,8 @@ def pool_candidates(source: dict, pool: dict, day) -> dict:
     return {k: v for k, v in pool.items() if v["last_seen"] >= cutoff}
 
 
-def run_daily(cfg: dict, state: Path, output: Path, from_report: Path | None = None) -> int:
+def run_daily(cfg: dict, state: Path, output: Path, from_report: Path | None = None,
+              *, resume: bool = False, origin: str = "manual") -> int:
     day = today_local()
     c = cfg["opportunities"]
     root = state / "web-opportunities" / day.isoformat()
@@ -77,8 +78,12 @@ def run_daily(cfg: dict, state: Path, output: Path, from_report: Path | None = N
         return 0 if result["status"] == "complete" else 2
 
     if final.exists():
+        if resume:
+            return daily_recovery.resume_daily(cfg, state, output, day, origin)
         print("复用今天的 Web 机会结果；未新增付费调用。", flush=True)
         return deliver(read(final))
+    if resume:
+        raise ValueError("No saved daily result to resume; start a normal run")
     if (state / "demand-ledger.audit.lock").exists():
         raise aisa.AisaError("Demand ledger audit is active; do not start another daily run")
     lock = root / "run.lock"
@@ -90,7 +95,8 @@ def run_daily(cfg: dict, state: Path, output: Path, from_report: Path | None = N
     handle.close()
     result = {"date": day.isoformat(), "timezone": "Asia/Taipei", "status": "incomplete", "errors": [],
               "budget_usd": c["budget_usd"], "opportunities": [], "rejected": [], "selected": [], "evidence": []}
-    before, journal = None, None
+    daily_recovery.record_status(root, result, origin)
+    before, journal, external_cache, analysis_pending = None, None, None, False
     try:
         before = spending.account()
         result["billing"] = {"before": before}
@@ -105,7 +111,9 @@ def run_daily(cfg: dict, state: Path, output: Path, from_report: Path | None = N
         for path in state.iterdir():
             if path.is_file():
                 shutil.copy2(path, backup / path.name)
-        with aisa.managed_requests(journal):
+        from .external_cache import RequestCache
+        external_cache = RequestCache(root / "external-api", allow_new=True)
+        with aisa.managed_requests(journal), goanyapi.managed_requests(external_cache):
             reports_dir = cfg["_dir"] / "reports"
             source, source_path = (read(from_report), str(from_report)) if from_report else available_snapshot(reports_dir, day)
             if source is None:
@@ -129,6 +137,7 @@ def run_daily(cfg: dict, state: Path, output: Path, from_report: Path | None = N
                 result["errors"].append("X 账号采集不完整")
             if any(r.get("named") is None for r in source["leads"]):
                 result["errors"].append("部分候选未完成评分")
+            result["discovery_errors"] = list(result["errors"])
             pool_path = state / "web-candidate-pool.json"
             pool = pool_candidates(source, read(pool_path) if pool_path.exists() else {}, day)
             # Bring yesterday's unreviewed candidates into the backlog on first use.
@@ -145,8 +154,9 @@ def run_daily(cfg: dict, state: Path, output: Path, from_report: Path | None = N
             ledger_path = state / "demand-ledger.json"
             if cfg.get("demands", {}).get("enabled", True):
                 followups = demands.followups(ledger_path, day, max(1, cfg.get("research", {}).get("pain_tasks_per_day", 1)))
+                collection_plan = daily_recovery.save_plan(root, cfg, day, selected, followups, source)
                 evidence, errors, collection = demand_sources.collect(selected, day, c["problem_queries_per_day"],
-                    followups, cfg.get("demands", {}).get("free_sources", True))
+                    followups, cfg.get("demands", {}).get("free_sources", True), cfg.get("research", {}))
                 result["collection"] = collection
                 if cfg.get("research", {}).get("enabled"):
                     from . import demand_research
@@ -161,14 +171,21 @@ def run_daily(cfg: dict, state: Path, output: Path, from_report: Path | None = N
                     result["research_collection"] = coverage
                     collection["successful_followups"] = list(dict.fromkeys(
                         collection["successful_followups"] + coverage.get("successful_followups", [])))
-                demands.record_searches(ledger_path, collection["successful_followups"], day)
+                    daily_recovery.record_attempts(ledger_path, coverage, day, collection_plan["plan_id"])
+                daily_recovery.record_attempts(ledger_path, collection, day, collection_plan["plan_id"])
             else:
                 evidence, errors = opportunities.collect(selected, day, c["problem_queries_per_day"])
             result["evidence"] = evidence
+            result["collection_errors"] = list(errors)
             result["errors"] += errors
             spending.save(root / "evidence.json", evidence)
+            if cfg.get("demands", {}).get("enabled", True):
+                daily_recovery.checkpoint_audit(result, evidence, ledger_path, day)
+                spending.save(final, result)
+                analysis_pending = True
             assessment = (demands.process(c["model"], evidence, ledger_path, day) if cfg.get("demands", {}).get("enabled", True)
                           else opportunities.analyze(c["model"], evidence))
+            analysis_pending = False
             result.update(assessment)
             result["semantic_audit"] = {"status": "pending", "reason": "低价模型仅预处理；需独立核对全部来源及任务去向"}
             result["errors"] += assessment.get("analysis_errors", [])
@@ -185,11 +202,16 @@ def run_daily(cfg: dict, state: Path, output: Path, from_report: Path | None = N
             finally:
                 conn.close()
     except Exception as exc:
-        result["errors"].append(str(exc)[:240])
+        error = ("Model preprocessing failed: " + type(exc).__name__) if analysis_pending else str(exc)[:240]
+        result["errors"].append(error)
+        if analysis_pending:
+            result.setdefault("analysis_errors", []).append(error)
         result["status"] = "incomplete"
     finally:
         if journal:
             result["reserved_usd"] = journal.reserved
+        if external_cache:
+            result["external_collection_billing"] = external_cache.billing_summary()
         if before:
             try:
                 after = spending.account()
@@ -199,5 +221,6 @@ def run_daily(cfg: dict, state: Path, output: Path, from_report: Path | None = N
                 result["status"] = "incomplete"
         # Even failed days are saved. Scheduler must not turn repeated wakeups into retries.
         spending.save(final, result)
+        daily_recovery.record_status(root, result, origin)
         lock.unlink(missing_ok=True)
     return deliver(result)

@@ -80,13 +80,21 @@ def cmd_sources(args, cfg: dict, state: Path) -> int:
 
 
 def cmd_daily(args, cfg: dict, state: Path) -> int:
+    if getattr(args, "resume", False) and (not cfg["opportunities"]["enabled"] or
+            not cfg.get("demands", {}).get("enabled", True) or args.skip):
+        raise ValueError("Resume requires the enabled task-led workflow without skip flags; legacy daily is not a recovery path")
     free_mode = FREE_DAILY_SKIP <= args.skip
     if cfg["opportunities"]["enabled"] and args.skip and not free_mode:
         raise ValueError("Web daily cannot bypass evidence/budget checks; use the complete free-mode skip set")
     if cfg["opportunities"]["enabled"] and not args.skip:
         from .opportunity_runner import run_daily, today_local
         output = Path(args.out) if args.out else Path("reports") / f"{today_local():%Y%m%d}-web-opportunities.md"
-        return run_daily(cfg, state, output, Path(args.from_report) if args.from_report else None)
+        options = {}
+        if getattr(args, "resume", False):
+            options["resume"] = True
+        if getattr(args, "run_origin", "manual") != "manual":
+            options["origin"] = args.run_origin
+        return run_daily(cfg, state, output, Path(args.from_report) if args.from_report else None, **options)
     if free_mode:
         # Preserve the old free contract when adding upstream paid research.
         # As for other signals, skip takes precedence over --asks / --revenue.
@@ -193,7 +201,7 @@ def main(argv: list[str] | None = None) -> int:
         return serve_mcp()
     prog = "python -m radar" if __package__ == "radar" else "new-term-radar"  # installed, the package has another name
     p = argparse.ArgumentParser(prog=prog, description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("command", choices=["daily", "sources", "keywords", "leads", "pains", "opportunities", "trends", "validate-opportunities", "demand-audit", "research-opportunities"])
+    p.add_argument("command", choices=["daily", "sources", "keywords", "leads", "pains", "opportunities", "trends", "validate-opportunities", "demand-audit", "research-opportunities", "task-research", "workflow-status"])
     p.add_argument("names", nargs="*", help="for `keywords`: the names to read")
     p.add_argument("--repo", action="append", default=[], metavar="NAME=OWNER/REPO", help="for `keywords`: a name's GitHub repository")
     p.add_argument("--days", type=int, default=7, help="for `leads`: how far back")
@@ -202,10 +210,19 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--state", default="state", help="directory for radar.db and the snapshots")
     p.add_argument("--out", help="write the report (Markdown) here; `daily` also writes a .json beside it")
     p.add_argument("--from-report", help="reuse today's saved discovery JSON for Web opportunities")
-    p.add_argument("--trends-action", choices=["prepare", "claim", "import"], default="prepare")
+    p.add_argument("--trends-action", choices=["prepare", "claim", "import", "resume"], default="prepare")
     p.add_argument("--result", help="for trends: authoritative daily result.json")
     p.add_argument("--observations", help="for trends import: saved free-browser observations JSON")
-    p.add_argument("--audit-action", choices=["claim", "sources", "tasks"], default="claim")
+    p.add_argument("--audit-action", choices=["claim", "sources", "tasks", "amend"], default="claim")
+    p.add_argument("--resume", action="store_true", help="explicitly resume the saved daily collection plan; never reset billing")
+    p.add_argument("--run-origin", choices=["manual", "scheduled"], default="manual")
+    p.add_argument("--research-action", choices=["plan", "import"], default="plan")
+    p.add_argument("--plan", help="saved task research plan path")
+    p.add_argument("--date", help="Taipei date YYYY-MM-DD for local research/status")
+    p.add_argument("--limit", type=int, default=3, help="maximum local research plan items")
+    p.add_argument("--keyword", help="replacement task phrase when resuming search-intent validation")
+    p.add_argument("--item", help="validation item ID to rephrase")
+    p.add_argument("--task-id", action="append", help="explicit task IDs for a bounded local research plan")
     p.add_argument("--ledger", help="demand ledger path; defaults to STATE/demand-ledger.json")
     p.add_argument("--skip", default="", help="comma-separated: " + ",".join(sorted(SKIPPABLE)))
     p.add_argument("--new-sites", action="store_true", help="run the weekly new-site signal today")
@@ -219,6 +236,29 @@ def main(argv: list[str] | None = None) -> int:
     if unknown:
         p.error(f"--skip: unknown {sorted(unknown)}")
     state = Path(args.state)
+    if args.resume and args.command not in {"daily", "opportunities"}:
+        p.error("--resume is only for task-led daily collection")
+    if args.trends_action == "resume" and args.command != "validate-opportunities":
+        p.error("Validation resume applies only to validate-opportunities")
+    if args.command == "workflow-status":
+        from .opportunity_runner import today_local
+        from .daily_recovery import read
+        day = date.fromisoformat(args.date) if args.date else today_local()
+        root = state / "web-opportunities" / day.isoformat()
+        result = read(root / "result.json") if (root / "result.json").exists() else {}
+        receipt = read(root / "run-receipt.json") if (root / "run-receipt.json").exists() else {}
+        print(json.dumps({"date": day.isoformat(), "status": result.get("status", "not_started"),
+                          "semantic_audit": result.get("semantic_audit", {}).get("status", "not_started"),
+                          "validation": result.get("opportunity_validation", {}).get("status", "not_started"),
+                          "receipt": receipt, "active_or_interrupted_lock": any((root / name).exists() for name in
+                              ("run.lock", "trends-edit.lock", "api/requests.lock")),
+                          "errors": result.get("errors", [])}, ensure_ascii=False))
+        return 0
+    if args.command == "task-research":
+        from .task_research import command
+        return command(args.research_action, Path(args.ledger) if args.ledger else state / "demand-ledger.json",
+                       day=args.date, observations=Path(args.observations) if args.observations else None,
+                       plan_path=Path(args.plan) if args.plan else None, limit=args.limit, task_ids=args.task_id)
     if args.command == "leads":
         return cmd_leads(args, state)
     if args.command == "keywords" and not args.names:
@@ -240,7 +280,8 @@ def main(argv: list[str] | None = None) -> int:
             p.error("validate-opportunities requires --result")
         from .opportunity_validation import command
         return command(args.trends_action, Path(args.result), Path(args.observations) if args.observations else None,
-                       Path(args.out) if args.out else None, Path(args.ledger) if args.ledger else state / "demand-ledger.json")
+                       Path(args.out) if args.out else None, Path(args.ledger) if args.ledger else state / "demand-ledger.json",
+                       item_id=args.item, keyword=args.keyword)
     if args.command == "trends":
         if not args.result:
             p.error("trends requires --result pointing to the saved daily result.json")
