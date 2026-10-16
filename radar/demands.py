@@ -211,16 +211,18 @@ def materialize(ledger: dict) -> None:
 
 
 def references(task: dict, ledger: dict) -> list[dict]:
-    refs, urls = [], set()
+    # Shared pages can contain different tasks. Keep their source texts visible
+    # for semantic review; URL independence is a separate promotion requirement.
+    refs, source_ids = [], set()
     for sid in task["source_ids"]:
+        if sid in source_ids:
+            continue
         entry = ledger["sources"][sid]
         source = entry["source"]
-        if source["url"] in urls:
-            continue
         atoms = [a for a in entry.get("assessment", {}).get("tasks", []) if atom_id(sid, a) in task["atoms"]]
         if not atoms:
             continue
-        urls.add(source["url"])
+        source_ids.add(sid)
         refs.append({**source, "id": sid, "quote": atoms[0]["anchor"], "source_id": sid,
                      "context_status": source.get("context_status", "unverified"),
                      "classification_disagreement": bool(entry.get("disagreement")),
@@ -301,7 +303,8 @@ def review(model, ledger, tasks, day, supplied=None):
                 authors = {e["author"].split(":", 1)[-1].lower() for e in clean_refs if e.get("author", "").split(":", 1)[-1].strip()}
                 # Do not count near-identical/cross-platform copies as independent people.
                 texts = {re.sub(r"\W+", "", e["text"].lower()) for e in clean_refs}
-                safe = len(authors) >= 2 and len(texts) >= 2
+                urls = {e["url"] for e in clean_refs}
+                safe = len(authors) >= 2 and len(texts) >= 2 and len(urls) >= 2
                 if task.get("withdrawn_fingerprint") == review_fingerprint(task, ledger):
                     task["status"] = "待补证"
                     task["reason"] = "原文核验曾撤回此版本推荐；需新的独立证据后再评估"

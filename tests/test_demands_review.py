@@ -83,6 +83,59 @@ def test_empty_handle_cannot_supply_second_user(monkeypatch):
     assert len(accepted) == 1, "Positive control: all other required fields were valid"
 
 
+def test_shared_video_keeps_both_source_texts_and_rejected_merge_restores_tasks(monkeypatch):
+    ledger = ledger_with_tasks()
+    original = set(ledger["tasks"])
+    for entry in ledger["sources"].values():
+        entry["source"]["url"] = "https://youtu.be/abcdefghijk"
+    demands.cluster("unused", ledger, list(ledger["tasks"].values()), supplied=[{
+        "ids": sorted(original), "same_job": True, "same_constraints": True,
+        "reason": "Incorrectly merged neighboring video-editing tasks"}])
+    merged = next(iter(ledger["tasks"].values()))
+    # A repeated source ID is not another original, while different comments
+    # under the same video must remain visible to the reviewer.
+    merged["source_ids"].append(merged["source_ids"][0])
+    refs = demands.references(merged, ledger)
+    assert len(refs) == 2 and {r["source_id"] for r in refs} == set(ledger["sources"])
+    assert {r["text"] for r in refs} == {e["source"]["text"] for e in ledger["sources"].values()}
+    assert len({r["url"] for r in refs}) == 1
+
+    def reviewer(model, prompt, content, **kwargs):
+        packed = json.loads(content)
+        assert len(packed[0]["evidence"]) == 2, "The actual review prompt must expose both originals"
+        return json.dumps({"reviews": [{"id": merged["id"], "same_job": False, "firsthand": True,
+            "independent": False, "web_fit": "browser", "bounded": True,
+            "reason": "Removing silence and extending a word are different jobs", "proposal": None}]})
+
+    monkeypatch.setattr(demands.aisa, "chat", reviewer)
+    proposals, errors = demands.review("test", ledger, [merged], DAY.isoformat())
+    assert not proposals and any("rejected merge restored" in e for e in errors)
+    assert original == set(ledger["tasks"])
+    assert all(len(demands.references(t, ledger)) == 1 for t in ledger["tasks"].values())
+
+
+def test_shared_url_never_counts_as_independent_despite_distinct_authors_and_text():
+    ledger = ledger_with_tasks()
+    entries = list(ledger["sources"].values())
+    entries[1]["source"]["url"] = entries[0]["source"]["url"]
+    tasks = list(ledger["tasks"].values())
+    target = tasks[0]
+    target["source_ids"] += tasks[1]["source_ids"]
+    target["atoms"] += tasks[1]["atoms"]
+    proposal = {k: "Concrete field" for k in
+                ("title", "user", "job", "pain", "web_advantage", "input", "output", "mvp", "gap",
+                 "constraints", "validation", "success_condition", "stop_condition")}
+    proposal["keywords"] = ["batch invoice reconciliation"]
+    row = {"id": target["id"], "same_job": True, "firsthand": True, "independent": True,
+           "web_fit": "browser", "bounded": True, "reason": "Reviewer claims independence", "proposal": proposal}
+    assert len(demands.references(target, ledger)) == 2
+    proposals, errors = demands.review("unused", ledger, [target], DAY.isoformat(), supplied=[row])
+    assert not errors and not proposals and target["status"] == "待补证"
+    entries[1]["source"]["url"] = "https://example.com/distinct-source"
+    accepted, errors = demands.review("unused", ledger, [target], DAY.isoformat(), supplied=[row])
+    assert not errors and len(accepted) == 1, "Distinct URLs preserve the existing positive path"
+
+
 def test_unreviewed_backlog_does_not_claim_complete_zero_audit(monkeypatch, tmp_path):
     ledger = ledger_with_tasks(19)
     path = tmp_path / "ledger.json"
