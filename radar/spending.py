@@ -87,26 +87,56 @@ def model_prices(model: str) -> dict:
     return prices
 
 
-READ_ONLY_TOOLS = {"get_twitter_user_last_tweets", "get_twitter_tweet_advanced_search", "get_reddit_search",
+ALLOWED_DATA_TOOLS = {"get_twitter_user_last_tweets", "get_twitter_tweet_advanced_search", "get_reddit_search",
                    "post_dataforseo_serp_youtube_video_comments_live", "post_dataforseo_serp_google_organic_live",
                    "post_dataforseo_labs_google_keyword_overview_live"}
+# Live schema verified 2026-10-16: these GET operations are read_only and
+# idempotent. Allowed POST data operations may create provider tasks; no retry.
+RETRYABLE_READ_ONLY_TOOLS = {"get_twitter_user_last_tweets", "get_twitter_tweet_advanced_search", "get_reddit_search"}
 
 
 def quote(calls: list[dict]) -> float:
-    if any(c["tool"] not in READ_ONLY_TOOLS for c in calls):
-        raise aisa.AisaError("This daily workflow does not authorize that paid data operation")
-    results = control([("get_details", {"operation_id": c["tool"], "arguments": c["arguments"], "with_quote": True}) for c in calls])
-    total = 0.0
-    for result in results:
-        # Single-operation get_details returns the contract directly.
-        if "results" in result:
-            result = result["results"][0]
-        p = result.get("price", {})
-        amount = p.get("amount_usd")
-        if p.get("model") != "quoted" or not isinstance(amount, (int, float)) or not math.isfinite(amount) or amount < 0:
-            raise aisa.AisaError("A complete authenticated quote is required")
-        total += amount
-    return total
+    calls = _calls({"calls": calls})
+    responses = control([("batch_quote", {"calls": calls})])
+    invalid = "A complete attributable USD quote is required"
+    if not isinstance(responses, list) or len(responses) != 1 or not isinstance(responses[0], dict):
+        raise aisa.AisaError(invalid)
+    result = responses[0]
+    if result.get("error") is not None or any(type(result.get(k)) is not int or result[k] != v
+            for k, v in (("total_count", len(calls)), ("success_count", len(calls)), ("error_count", 0))):
+        raise aisa.AisaError(invalid)
+    replies = result.get("results")
+    expected = {c["call_id"]: c["tool"] for c in calls}
+    if (not isinstance(replies, list) or len(replies) != len(calls) or
+            any(not isinstance(r, dict) or not isinstance(r.get("call_id"), str) for r in replies) or
+            len({r["call_id"] for r in replies}) != len(replies) or
+            {r["call_id"] for r in replies} != set(expected)):
+        raise aisa.AisaError(invalid)
+    total_micros = 0
+    for reply in replies:
+        p = reply.get("data")
+        if (reply.get("successful") is not True or reply.get("error") is not None or
+                reply.get("tool") != expected[reply["call_id"]] or not isinstance(p, dict) or
+                p.get("object") != "cost_estimate" or p.get("currency") != "USD"):
+            raise aisa.AisaError(invalid)
+        estimate, maximum, kind = p.get("estimated_cost_micros_usd"), p.get("max_cost_micros_usd"), p.get("estimate_kind")
+        if (not _number(estimate) or not isinstance(kind, str) or kind not in {"exact", "upper_bound", "estimate"} or
+                p.get("may_exceed_estimate") is not (kind == "estimate")):
+            raise aisa.AisaError(invalid)
+        if kind == "estimate":
+            # This contract has no guaranteed ceiling. Journal retains its
+            # conservative reservation; an estimate is never described as a cap.
+            if "max_cost_micros_usd" in p:
+                raise aisa.AisaError(invalid)
+            amount = estimate
+        else:
+            if not _number(maximum) or maximum < estimate or (kind == "exact" and maximum != estimate):
+                raise aisa.AisaError(invalid)
+            amount = maximum
+        total_micros += amount
+    if not _number(total_micros):
+        raise aisa.AisaError(invalid)
+    return total_micros / 1e6
 
 
 def _number(value) -> bool:
@@ -121,7 +151,7 @@ def _calls(body: dict) -> list[dict]:
     calls = body.get("calls") if isinstance(body, dict) else None
     if (not isinstance(calls, list) or not 1 <= len(calls) <= aisa.MAX_CALLS or
             any(not isinstance(c, dict) or not isinstance(c.get("call_id"), str) or not c["call_id"] or
-                c.get("tool") not in READ_ONLY_TOOLS or not isinstance(c.get("arguments"), dict) for c in calls) or
+                c.get("tool") not in ALLOWED_DATA_TOOLS or not isinstance(c.get("arguments"), dict) for c in calls) or
             len({c["call_id"] for c in calls}) != len(calls)):
         raise aisa.AisaError("Malformed or unauthorized paid data request")
     return calls
@@ -223,7 +253,7 @@ def _classify(url: str, body: dict, response, prices: dict) -> dict:
         return _outcome("unknown", actual)
     failed = [r for r in replies if r["successful"] is False]
     if failed:
-        transient = len(failed) == len(replies) and all(
+        transient = all(c["tool"] in RETRYABLE_READ_ONLY_TOOLS for c in calls) and len(failed) == len(replies) and all(
             r["customer_cost_micros_usd"] == 0 and isinstance(r.get("error"), dict) and
             r["error"].get("retryable") is True and r["error"].get("type") == "upstream" and
             type(r["error"].get("status")) is int and
@@ -270,7 +300,7 @@ def _legacy_success(entry: dict, response: dict) -> bool:
     # Synthetic arguments are only used to validate the old successful envelope;
     # they are never persisted as a real request or sent to the provider.
     tools = entry.get("label", "").split(",")
-    if len(tools) != len(replies) or any(tool not in READ_ONLY_TOOLS for tool in tools):
+    if len(tools) != len(replies) or any(tool not in ALLOWED_DATA_TOOLS for tool in tools):
         return False
     request = {"calls": [{"call_id": r["call_id"], "tool": tool, "arguments": {}}
                          for r, tool in zip(replies, tools)]}
@@ -470,7 +500,8 @@ class Journal:
                 interpreted = self._cached_youtube_empty(entry, url, body, cached)
                 if interpreted is not None:
                     return interpreted
-            if entry and (not entry.get("retryable") or len(entry["attempts"]) >= self.MAX_ATTEMPTS):
+            if entry and (not entry.get("retryable") or len(entry["attempts"]) >= self.MAX_ATTEMPTS or
+                          url != aisa.ROUTER or any(c["tool"] not in RETRYABLE_READ_ONLY_TOOLS for c in _calls(body))):
                 raise JournalError("Prior request failed or was interrupted; automatic paid retry disabled", "retry_disabled")
             if any(e.get("global_stop", e["status"] != "ok") for e in self.entries):
                 raise JournalError("An unknown or account-level failure occurred; further paid calls are stopped", "global_block")

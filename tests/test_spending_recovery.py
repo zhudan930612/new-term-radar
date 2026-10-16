@@ -391,3 +391,50 @@ def test_old_empty_reinterpretation_rejects_cost_or_original_request_mismatch(se
     spending.save(tmp_path / latest["request_file"], request)
     with pytest.raises(spending.JournalError, match="retry disabled"):
         journal.request(aisa.ROUTER, youtube_empty_request(), 1, lambda *a: pytest.fail("Cannot reinterpret mismatched request"))
+
+
+@pytest.mark.parametrize("tool", sorted(spending.ALLOWED_DATA_TOOLS - spending.RETRYABLE_READ_ONLY_TOOLS))
+def test_allowed_post_data_operations_never_retry_even_explicit_zero(setup, tool):
+    journal, quotes, sleeps = setup
+    request = body()
+    request["calls"][0]["tool"] = tool
+    sends = []
+    with pytest.raises(spending.JournalError) as exc:
+        journal.request(aisa.ROUTER, request, 1, lambda *a: sends.append(1) or failure(request))
+    assert exc.value.failure_kind == "source_failure"
+    assert len(sends) == len(quotes) == 1 and sleeps == []
+    assert journal.entries[0]["retryable"] is False
+    assert journal.entries[0]["global_stop"] is False
+    assert journal.reserved == 0
+    journal.request(aisa.ROUTER, body("independent"), 1, lambda *a: success())
+
+
+def test_historical_retryable_post_cannot_bypass_current_tool_safety(setup, tmp_path):
+    journal, quotes, _ = setup
+    request = youtube_empty_request()
+    digest = spending._digest(aisa.ROUTER, request)
+    entry = {"id": digest, "label": request["calls"][0]["tool"], "attempts": [
+        {"number": 1, "reserved_usd": .0025, **spending._outcome("retryable_zero", 0)}]}
+    journal._sync(entry)
+    spending.save(tmp_path / "requests.json", [entry])
+    before = (tmp_path / "requests.json").read_bytes()
+    with pytest.raises(spending.JournalError) as exc:
+        journal.request(aisa.ROUTER, request, 1, lambda *a: pytest.fail("Old POST must not retry"))
+    assert exc.value.failure_kind == "retry_disabled" and exc.value.request_sent is False
+    assert quotes == [] and (tmp_path / "requests.json").read_bytes() == before
+
+
+def test_mixed_get_post_zero_failure_does_not_replay_batch(setup):
+    journal, quotes, _ = setup
+    request = body(count=2)
+    request["calls"][1]["tool"] = "post_dataforseo_serp_google_organic_live"
+    with pytest.raises(spending.JournalError):
+        journal.request(aisa.ROUTER, request, 1, lambda *a: failure(request))
+    assert len(quotes) == 1 and journal.entries[0]["outcome"] == "source_failure"
+
+
+@pytest.mark.parametrize("tool", sorted(spending.RETRYABLE_READ_ONLY_TOOLS))
+def test_verified_get_tools_keep_strict_zero_retry_eligibility(tool):
+    request = body()
+    request["calls"][0]["tool"] = tool
+    assert spending._classify(aisa.ROUTER, request, failure(request), {})["outcome"] == "retryable_zero"

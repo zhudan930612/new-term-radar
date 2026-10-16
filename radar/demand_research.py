@@ -105,7 +105,7 @@ def collect(cfg: dict, today: date, followups: list[dict], selected: list[dict],
     def reddit(query, lane, task_id=""):
         check = record("reddit", query, lane=lane, task_id=task_id, window="month")
         try:
-            data = call(social.REDDIT_TOOL, {"query": query, "sort": "new", "timeframe": "month", "trim": False})
+            data = call(social.REDDIT_TOOL, {"query": query, "sort": "new", "timeframe": "month", "trim": "false"})
             rows = data.get("posts")
             if data.get("success") is False or not isinstance(rows, list):
                 raise ValueError("Reddit posts missing")

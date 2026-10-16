@@ -39,7 +39,7 @@ def test_reddit_low_score_full_text_and_real_author(settings, tmp_path, monkeypa
     assert rows[0]["author"] == "reddit:actual_user"
     assert rows[1]["author"] == ""
     assert coverage["queries"][0]["unknown_authors"] == 1
-    assert received[0]["arguments"] == {"query": '"is there a tool"', "sort": "new", "timeframe": "month", "trim": False}
+    assert received[0]["arguments"] == {"query": '"is there a tool"', "sort": "new", "timeframe": "month", "trim": "false"}
 
 
 def test_followup_search_terms_drive_pain_queries_and_missing_optional_key(settings, tmp_path, monkeypatch):
