@@ -255,7 +255,7 @@ npx skills add zhuyansen/new-term-radar
 给支持 MCP 的客户端用（Claude Code、Cursor、Claude Desktop）：
 
 ```bash
-pip install "new-term-radar[mcp] @ git+https://github.com/zhuyansen/new-term-radar"
+pip install "new-term-radar[mcp]"
 ```
 
 ```json

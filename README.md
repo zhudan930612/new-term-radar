@@ -252,7 +252,7 @@ Then ask your agent for "today's new AI keywords", "an AI listening report" or "
 For clients that speak MCP (Claude Code, Cursor, Claude Desktop):
 
 ```bash
-pip install "new-term-radar[mcp] @ git+https://github.com/zhuyansen/new-term-radar"
+pip install "new-term-radar[mcp]"
 ```
 
 ```json
