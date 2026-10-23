@@ -342,7 +342,7 @@ def billing_summary(entries: list[dict]) -> dict:
         for attempt in entry.get("attempts", [entry]):
             result["attempts"] += 1
             amount = attempt.get("actual_usd")
-            known = attempt.get("charge_known", entry.get("status") == "ok")
+            known = attempt.get("charge_known", "attempts" not in entry and entry.get("status") == "ok")
             if not known or attempt.get("status") == "pending" or not _number(amount):
                 result["unknown_attempts"] += 1
                 result["unknown_reserved_usd"] += max(attempt.get("reserved_usd", 0), amount or 0)

@@ -39,6 +39,13 @@ def test_mixed_legacy_journal_unknown_zero_is_not_free_and_not_mutated():
     assert entries == before
 
 
+def test_missing_attempt_charge_status_does_not_inherit_later_success():
+    bill = spending.billing_summary([{"label": "get_reddit_search", "status": "ok", "attempts": [
+        {"status": "failed", "actual_usd": 0, "reserved_usd": .2},
+        {"status": "ok", "charge_known": True, "actual_usd": .01}]}])
+    assert bill["unknown_attempts"] == 1 and bill["unknown_reserved_usd"] == .2
+
+
 def test_summary_exposes_latest_decision_without_rewriting_plan_or_opportunity(tmp_path):
     ledger = reviewed()
     task = next(iter(ledger["tasks"].values()))
@@ -103,6 +110,16 @@ def test_incomplete_followups_do_not_count_as_failed_evidence_rounds():
     assert task_research.unproductive_rounds(task) == 1
     demand_audit.confirm_followups(result, ledger)
     assert task_research.unproductive_rounds(task) == 1
+
+
+def test_query_metrics_never_join_reused_daily_display_ids():
+    a = {"id": "e1", "url": "https://example.com/a", "text": "original A", "query": "invoices", "query_source": "reddit"}
+    b = {"id": "e2", "url": "https://example.com/b", "text": "original B"}
+    result = {"status": "complete", "semantic_audit": {"status": "complete"}, "evidence": [a, b],
+              "dispositions": [{"id": demands.source_id(a), "original_id": "e1", "category": "need"},
+                               {"id": demands.source_id(b), "original_id": "e1", "category": "need"}],
+              "research_collection": {"queries": [{"query": "invoices", "source": "reddit", "status": "complete"}]}}
+    assert demand_audit.query_metrics(result)[0]["need_count"] == 1
 
 
 def test_repeated_unproductive_queries_require_local_change_not_more_paid_calls():
@@ -177,6 +194,13 @@ def test_identity_import_preserves_original_and_invalidates_semantic_review(tmp_
     ledger["sources"][old_sid] = ledger["sources"][sid]
     demands._register_sources(ledger, [old_raw], "2026-10-17")
     assert ledger["sources"][old_sid]["source"]["author"] == "youtube:" + row["channel_id"]
+    # A different observed profile is an identity change, not missing metadata.
+    conflicting = {**old_raw, "author_url": "https://www.youtube.com/@different"}
+    demands._register_sources(ledger, [conflicting], "2026-10-18")
+    assert ledger["sources"][old_sid]["source"]["author_url"].endswith("/@different")
+    assert ledger["sources"][old_sid]["source"]["author"] == ""
+    assert ledger["sources"][old_sid]["source"]["identity_status"] == "unknown"
+    assert ledger["sources"][old_sid]["source"]["author_id"] == ""
 
 
 @pytest.mark.parametrize("bad", ["other_video", "fabricated_quote", "other_profile", "no_time", "unknown_channel", "out_of_scope"])

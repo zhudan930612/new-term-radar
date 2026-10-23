@@ -4,7 +4,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlsplit
 
 from .demand_research import _video
@@ -48,7 +48,8 @@ def apply(ledger: dict, rows: list[dict], scope: list[str], root, day: str) -> N
             raise ValueError("Profile quote must show the immutable channel identity")
         for obs in (comment, profile):
             stamp = datetime.fromisoformat(obs["observed_at"])
-            if stamp.tzinfo is None or stamp.date().isoformat() < day or stamp > datetime.now(timezone.utc):
+            if (stamp.tzinfo is None or stamp.astimezone(timezone(timedelta(hours=8))).date().isoformat() < day or
+                    stamp > datetime.now(timezone.utc)):
                 raise ValueError("Identity observation time must be actual and no earlier than the audit date")
         checked.append((sid, {**source, "url": comment["url"], "source_record_id": cid,
                               "author": "youtube:" + channel, "author_id": channel,

@@ -462,12 +462,18 @@ def _register_sources(ledger: dict, evidence: list[dict], day_str: str) -> list[
         entry = ledger["sources"].setdefault(sid, {"source": {**source, "original_id": source.get("id")},
                                                   "first_seen": day_str, "last_seen": day_str})
         previous_source = entry["source"]
-        if previous_source.get("identity_status") == "source_verified" and not source.get("author"):
+        if (previous_source.get("identity_status") == "source_verified" and not source.get("author") and
+                source.get("kind") == previous_source.get("kind") and
+                (not source.get("author_url") or source["author_url"] == previous_source.get("author_url"))):
             # A later provider page with missing metadata cannot erase verified
             # identity. The incoming raw response remains in the daily evidence.
             source = {**source, **{k: previous_source[k] for k in
                 ("url", "author", "author_id", "source_record_id", "author_url", "identity_status", "context_status")
                 if k in previous_source}}
+        elif previous_source.get("identity_status") == "source_verified":
+            source = {**source, "identity_status": source.get("identity_status", "unknown"),
+                      "author_id": source.get("author_id", ""), "source_record_id": source.get("source_record_id", ""),
+                      "context_status": source.get("context_status", "unverified")}
         identity_fields = ("author", "author_id", "author_url", "source_record_id", "kind", "truncated", "context_status")
         if any(k in source and source.get(k) != previous_source.get(k) for k in identity_fields):
             entry.setdefault("source_history", []).append(copy.deepcopy(previous_source))

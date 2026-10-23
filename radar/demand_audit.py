@@ -151,8 +151,8 @@ def query_metrics(result: dict) -> list[dict]:
             sources = [e for e in result.get("evidence", []) if e.get("query") == query.get("query") and
                        e.get("query_source") == query.get("source")]
             ids = {demands.source_id(s) for s in sources}
-            # Audit identity amendments preserve source IDs even when URLs improve.
-            ids |= {r["id"] for r in result.get("dispositions", []) if any(r.get("original_id") == s.get("id") for s in sources)}
+            # Stable IDs derive from saved raw evidence. Daily display IDs are
+            # reused across days and must never be used as an attribution join.
             rows.append({"source": query.get("source"), "query": query.get("query"), "task_id": query.get("task_id", ""),
                          "status": query.get("status"), "raw_count": len(sources),
                          "attribution": "recorded" if sources else "unknown_or_empty",
