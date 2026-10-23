@@ -91,7 +91,8 @@ def collect(cfg: dict, today: date, followups: list[dict], selected: list[dict],
             check["duplicates"] = check.get("duplicates", 0) + 1
             return
         seen.add(key)
-        evidence.append({**row, "id": f"research{len(evidence) + 1}", "observed_on": today.isoformat(),
+        evidence.append({**row, "query": check["query"], "query_source": check["source"],
+                         "id": f"research{len(evidence) + 1}", "observed_on": today.isoformat(),
                          "truncated": False, "provider_text_completeness": "unknown"})
         check["accepted"] += 1
 

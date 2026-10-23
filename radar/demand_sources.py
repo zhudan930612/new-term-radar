@@ -69,7 +69,8 @@ def collect(selected: list[dict], today: date, query_count: int, followups: list
                     continue
                 if add({"kind": "post", "text": tw.get("text", ""), "url": tw.get("url", ""),
                      "author": "x:" + (tw.get("author") or {}).get("userName", "").lower(),
-                     "topic": topic, "task_id": task_id, "created": tw.get("createdAt", ""), "context_status": "thread_not_read"}):
+                      "topic": topic, "task_id": task_id, "query": record["query"], "query_source": "x",
+                      "created": tw.get("createdAt", ""), "context_status": "thread_not_read"}):
                     record["accepted"] += 1
                 if record["accepted"] >= 12:
                     break

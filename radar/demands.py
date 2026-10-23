@@ -115,10 +115,23 @@ def validate_row(row: dict, source: dict) -> dict:
     return {"category": row["category"], "reason": row["reason"], "tasks": tasks}
 
 
+def _source_batches(ledger, ids, max_bytes=64000):
+    """Keep whole originals; a long source gets its own batch, never truncation."""
+    batch, size = [], 0
+    for sid in ids:
+        n = len(ledger["sources"][sid]["source"]["text"].encode("utf-8"))
+        if batch and (len(batch) >= 12 or size + n > max_bytes):
+            yield batch
+            batch, size = [], 0
+        batch.append(sid)
+        size += n
+    if batch:
+        yield batch
+
+
 def _classify(model, ledger, ids, *, audit, day, persist):
     errors = []
-    for offset in range(0, len(ids), 12):
-        batch = ids[offset:offset + 12]
+    for offset, batch in enumerate(_source_batches(ledger, ids)):
         pack = [{"id": sid, **{k: ledger["sources"][sid]["source"].get(k) for k in
                 ("kind", "author", "context_status")},
                 "segments": dict(enumerate(source_spans(ledger["sources"][sid]["source"]["text"])))} for sid in batch]
@@ -449,6 +462,12 @@ def _register_sources(ledger: dict, evidence: list[dict], day_str: str) -> list[
         entry = ledger["sources"].setdefault(sid, {"source": {**source, "original_id": source.get("id")},
                                                   "first_seen": day_str, "last_seen": day_str})
         previous_source = entry["source"]
+        if previous_source.get("identity_status") == "source_verified" and not source.get("author"):
+            # A later provider page with missing metadata cannot erase verified
+            # identity. The incoming raw response remains in the daily evidence.
+            source = {**source, **{k: previous_source[k] for k in
+                ("url", "author", "author_id", "source_record_id", "author_url", "identity_status", "context_status")
+                if k in previous_source}}
         identity_fields = ("author", "author_id", "author_url", "source_record_id", "kind", "truncated", "context_status")
         if any(k in source and source.get(k) != previous_source.get(k) for k in identity_fields):
             entry.setdefault("source_history", []).append(copy.deepcopy(previous_source))
@@ -466,7 +485,9 @@ def checkpoint_sources(evidence: list[dict], ledger_path: Path, day: date) -> li
     return ids
 
 
-def process(model: str, evidence: list[dict], ledger_path: Path, day: date) -> dict:
+def process(model: str, evidence: list[dict], ledger_path: Path, day: date, *, mode="full") -> dict:
+    if mode not in {"full", "extract_only"}:
+        raise ValueError("Unsupported demand preprocessing mode")
     ledger, day_str = load(ledger_path), day.isoformat()
     persist = lambda: spending.save(ledger_path, ledger)
     ids = _register_sources(ledger, evidence, day_str)
@@ -485,7 +506,8 @@ def process(model: str, evidence: list[dict], ledger_path: Path, day: date) -> d
     # Audit every current source, including negatives, not just surviving proposals.
     audit_ids = [s for s in ids if not ledger["sources"][s].get("audit") or ledger["sources"][s].get("analysis_error") or
                  (ledger["sources"][s].get("disagreement") and ledger["sources"][s]["audit"].get("date", "") <= audit_cutoff)]
-    _classify(model, ledger, audit_ids, audit=True, day=day_str, persist=persist)
+    if mode == "full":
+        _classify(model, ledger, audit_ids, audit=True, day=day_str, persist=persist)
     materialize(ledger)
     persist()
     tasks = active_tasks(ledger, day_str)
@@ -495,7 +517,7 @@ def process(model: str, evidence: list[dict], ledger_path: Path, day: date) -> d
     covered = due_before[:18] + historical_matches(ledger, due_before[:18], day_str)
     errors = []
     try:
-        if due_before:
+        if due_before and mode == "full":
             cluster(model, ledger, covered)
     except Exception as exc:
         errors.append("task clustering: " + type(exc).__name__)
@@ -503,7 +525,7 @@ def process(model: str, evidence: list[dict], ledger_path: Path, day: date) -> d
     tasks = active_tasks(ledger, day_str)
     tasks.sort(key=lambda t: (t.get("reviewed", ""), t["first_seen"], t["id"]))
     due = [t for t in tasks if review_due(t, ledger, day_str) and not t.get("fingerprint_migration_pending")]
-    proposals, review_errors = review(model, ledger, due[:18], day_str)
+    proposals, review_errors = review(model, ledger, due[:18], day_str) if mode == "full" else ([], [])
     errors += review_errors
     persist()
     pending_sources = [sid for sid in ids if ledger["sources"][sid].get("analysis_error") or

@@ -30,7 +30,8 @@ def _hash(value) -> str:
 def validate_research(value: dict, day: date | str, source_ids=None) -> dict:
     """Validate a reviewer-authored decision; no state is inferred from prose."""
     day = _day(day)
-    allowed = {"status", "priority", "gap", "next_action", "reason", "next_review", "evidence_source_ids", "query_variants"}
+    allowed = {"status", "priority", "gap", "next_action", "reason", "next_review", "evidence_source_ids", "query_variants",
+               "waiting_on", "resume_condition", "query_context"}
     if not isinstance(value, dict) or set(value) - allowed:
         raise ValueError("Unknown research decision fields")
     if value.get("status") not in STATES or type(value.get("priority")) is not int or not 0 <= value["priority"] <= 3:
@@ -55,6 +56,18 @@ def validate_research(value: dict, day: date | str, source_ids=None) -> dict:
     if (not isinstance(variants, list) or len(variants) > 2 or any(not isinstance(q, str) or not 3 <= len(q.strip()) <= 100 or
             re.search(r'[\n\r"\'“”‘’():<>]|\b(?:AND|OR|NOT)\b', q) for q in variants)):
         raise ValueError("Use at most two natural task phrases without query operators")
+    waiting = value.get("waiting_on")
+    if waiting is not None or "resume_condition" in value:
+        if value["status"] != "paused" or waiting not in {"public_feedback", "product_delivery", "public_sample", "user_material"}:
+            raise ValueError("Paused waiting_on must identify feedback, delivery, public sample or user material")
+        condition = value.get("resume_condition")
+        if not isinstance(condition, str) or not 8 <= len(condition.strip()) <= 1000:
+            raise ValueError("Paused research needs a concrete resume condition")
+    context = value.get("query_context", {})
+    if (not isinstance(context, dict) or set(context) - {"role", "step", "alternative"} or
+            any(not isinstance(v, str) or not 2 <= len(v.strip()) <= 80 or
+                re.search(r'[\n\r"\'():<>]|\b(?:AND|OR|NOT)\b', v) for v in context.values())):
+        raise ValueError("Query context must contain short evidence-backed natural phrases")
     return {**value, "next_review": next_review, "evidence_source_ids": list(sources),
             **({"query_variants": list(variants)} if "query_variants" in value else {})}
 
@@ -70,6 +83,25 @@ def apply_research(task: dict, value: dict, day: date | str, reviewer: str, orig
     if not any(r.get("id") == event["id"] for r in history):
         history.append(event)
     current.update(value)
+    if value["status"] != "paused":
+        current.pop("waiting_on", None)
+        current.pop("resume_condition", None)
+
+
+def unproductive_rounds(task: dict) -> int:
+    """Only completed, audited rounds of the current query context count."""
+    research = task.get("research", {})
+    count = 0
+    for event in reversed(task.get("search_history", [])):
+        if (event.get("query_context", {}) != research.get("query_context", {}) or
+                event.get("query_variants", []) != research.get("query_variants", [])):
+            break
+        status = event.get("confirmation", {}).get("status")
+        if status == "confirmed":
+            break
+        if status == "no_confirmed_evidence":
+            count += 1
+    return count
 
 
 def needs_validation(task: dict, ledger: dict) -> bool:
@@ -107,6 +139,8 @@ def local_review_reason(task: dict, ledger: dict, day: date | str) -> str | None
         return "paused_review_due"
     if not _reviewed(task, ledger):
         return "semantic_review_required"
+    if research.get("status", "active") == "active" and unproductive_rounds(task) >= 2:
+        return "query_revision_required"
     if (task.get("status") == "值得深入验证" and validation.get("status") == "complete" and
             validation.get("evidence_fingerprint") == fingerprint and task.get("withdrawn_fingerprint") != fingerprint and
             research.get("status", "active") == "active" and
@@ -125,6 +159,7 @@ def rank_followups(ledger: dict, day: date | str, limit: int) -> list[dict]:
         research = task.get("research", {})
         if (task["status"] not in {"待补证", "待复核", "网页可行性待验证"} or
                 not _reviewed(task, ledger) or
+                unproductive_rounds(task) >= 2 or
                 research.get("status", "active") != "active" or
                 research.get("next_review") and _day(research["next_review"]) > day or
                 task.get("last_search", "") >= (day - timedelta(days=3)).isoformat()):
@@ -149,6 +184,7 @@ def rank_followups(ledger: dict, day: date | str, limit: int) -> list[dict]:
 
 
 def plan(ledger: dict, day: date | str, limit: int = 3, task_ids: list[str] | None = None) -> dict:
+    from .source_identity import checks as identity_checks
     from . import demands
     day = _day(day)
     if task_ids is not None:
@@ -167,6 +203,8 @@ def plan(ledger: dict, day: date | str, limit: int = 3, task_ids: list[str] | No
               "priority_effective": t.get("research", {}).get("priority", 0) if _reviewed(t, ledger) and
                  t.get("research", {}).get("evidence_fingerprint") == demands.review_fingerprint(t, ledger) else 0,
               "research": copy.deepcopy(t.get("research", {})), "evidence": demands.references(t, ledger),
+              "identity_checks": identity_checks(demands.references(t, ledger)),
+              "pause_condition_missing": t.get("research", {}).get("status") == "paused" and not t.get("research", {}).get("resume_condition"),
               "questions": ["原文与当前未解决步骤是什么", "现有替代方案是否已经满足", "哪份授权任务样例能复现问题",
                             "可接触渠道、最小实验及继续或停止条件是什么"]} for t in tasks]
     result = {"version": 1, "date": day.isoformat(), "items": items, "api_cost_usd": 0, "market_verified": False}
@@ -275,7 +313,17 @@ def command(action: str, ledger_path: Path, day: date | str | None = None, obser
                                       json.loads(observations.read_text(encoding="utf-8")), plan_path.parent, day)
         if changed:
             spending.save(ledger_path, ledger)
-        print(json.dumps({"imported": changed, "market_verified": False}))
-        return 0
     finally:
         lock.unlink(missing_ok=True)
+    summary_path = ledger_path.parent / "web-opportunities" / day.isoformat() / "result.json"
+    summary_error = None
+    if summary_path.exists():
+        from .daily_summary import command as summarize
+        try:
+            summarize(ledger_path.parent, day.isoformat(), ledger_path=ledger_path)
+        except (OSError, ValueError, KeyError) as exc:
+            # The evidence-backed import already committed. A derived output
+            # failure must not ask the user to repeat research or paid collection.
+            summary_error = type(exc).__name__
+    print(json.dumps({"imported": changed, "market_verified": False, "summary_error": summary_error}))
+    return 0

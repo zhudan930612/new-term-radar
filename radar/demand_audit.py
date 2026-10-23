@@ -40,7 +40,11 @@ def confirm_followups(result: dict, ledger: dict) -> None:
     for stage in stages.values():
         stage["confirmed_followups"], stage["confirmed_followup_sources"] = [], []
     if result.get("status") != "complete" or result.get("semantic_audit", {}).get("status") != "complete":
+        for stage in stages.values():
+            stage["confirmation_status"] = "not_evaluated"
         return
+    for stage in stages.values():
+        stage["confirmation_status"] = "evaluated"
     day = result["date"]
     scope = {r["id"] for r in result.get("dispositions", [])}
     normalized = lambda text: re.sub(r"\W+", "", str(text).casefold())
@@ -125,6 +129,38 @@ def confirm_followups(result: dict, ledger: dict) -> None:
                 task["last_evidence"] = max(dates)
             else:
                 task.pop("last_evidence", None)
+    targets = {tid for stage in stages.values() for tid in stage.get("attempted_followups", [])}
+    confirmed = {tid for stage in stages.values() for tid in stage["confirmed_followups"]}
+    for task in ledger["tasks"].values():
+        for event in task.get("search_history", []):
+            if task["id"] in targets and event.get("date") == day:
+                event["confirmation"] = {"status": "confirmed" if task["id"] in confirmed else "no_confirmed_evidence",
+                    "audit_revision": result["semantic_audit"].get("revision", 1),
+                    "meaning": "same-task original; independent users are checked separately"}
+
+
+def query_metrics(result: dict) -> list[dict]:
+    """Per-query yield; missing historical attribution stays unknown."""
+    categories = {r["id"]: r["category"] for r in result.get("dispositions", [])}
+    complete = result.get("status") == "complete" and result.get("semantic_audit", {}).get("status") == "complete"
+    rows = []
+    for name in ("collection", "research_collection"):
+        stage = result.get(name, {})
+        confirmed = {r["source_id"] for r in stage.get("confirmed_followup_sources", [])}
+        for query in stage.get("queries", []):
+            sources = [e for e in result.get("evidence", []) if e.get("query") == query.get("query") and
+                       e.get("query_source") == query.get("source")]
+            ids = {demands.source_id(s) for s in sources}
+            # Audit identity amendments preserve source IDs even when URLs improve.
+            ids |= {r["id"] for r in result.get("dispositions", []) if any(r.get("original_id") == s.get("id") for s in sources)}
+            rows.append({"source": query.get("source"), "query": query.get("query"), "task_id": query.get("task_id", ""),
+                         "status": query.get("status"), "raw_count": len(sources),
+                         "attribution": "recorded" if sources else "unknown_or_empty",
+                         "need_count": sum(categories.get(sid) == "need" for sid in ids),
+                         "promotion_count": sum(categories.get(sid) == "promotion" for sid in ids),
+                         "confirmation_status": "evaluated" if complete else "not_evaluated",
+                         "confirmed_same_task_count": len(ids & confirmed) if complete else None})
+    return rows
 
 
 def _archive(root, revision, action, payload, before, result, ledger, plan):
@@ -211,6 +247,8 @@ def command(action: str, result_path: Path, ledger_path: Path, observations: Pat
                 if len(rows) != len(ids) or {r.get("id") for r in rows} != set(ids):
                     raise ValueError("Semantic audit must cover every source, including all negatives")
                 checked = [(r["id"], demands.validate_row(r, ledger["sources"][r["id"]]["source"])) for r in rows]
+                from .source_identity import apply as apply_identities
+                apply_identities(ledger, payload.get("identity_observations", []), ids, result_path.parent, result["date"])
                 for sid, assessment in checked:
                     entry = ledger["sources"][sid]
                     entry.setdefault("assessment_history", []).append({"date": result["date"], **entry.get("assessment", {})})
@@ -291,6 +329,7 @@ def command(action: str, result_path: Path, ledger_path: Path, observations: Pat
         else:
             raise ValueError("Unsupported audit action")
         confirm_followups(result, ledger)
+        result["query_metrics"] = query_metrics(result)
         task_rows = [{**t, "evidence": demands.references(t, ledger)} for t in demands.active_tasks(ledger, result["date"])]
         result["tasks"] = task_rows
         result["zero_result_audit"]["task_ids"] = [t["id"] for t in task_rows]

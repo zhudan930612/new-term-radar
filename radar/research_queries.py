@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-QUERY_STRATEGY_VERSION = 1
+QUERY_STRATEGY_VERSION = 2
 DEFAULT_DISCOVERY_QUERIES = [
     '(bookkeeper OR accountant) (reconcile OR reconciliation) manually',
     '(teacher OR tutor) (grading OR worksheets) "takes hours"',
@@ -93,7 +93,7 @@ def words(value) -> list[str]:
 
 
 def short_phrase(value) -> str:
-    return " ".join(words(value)[:6])
+    return " ".join(words(value)[:12])
 
 
 def query_variants(task: dict) -> list[str]:
@@ -109,6 +109,13 @@ def query_variants(task: dict) -> list[str]:
         synonym = " ".join(SYNONYMS.get(w, w) for w in base.split())
         variants += [synonym, base + " problem", synonym + " workaround"]
         variants = list(dict.fromkeys(variants))
+    # Context is authored in an evidence-bound semantic review, never inferred
+    # from names/popularity. Request caps are unchanged; all returned text stays.
+    context = research.get("query_context", {})
+    if context and variants:
+        base = short_phrase(context.get("step")) or variants[0]
+        scoped = [short_phrase(base + " " + context[k]) for k in ("role", "alternative") if context.get(k)]
+        variants = list(dict.fromkeys(scoped + variants))
     attempts = task.get("search_attempts", research.get("search_attempts", 0))
     attempts = max(0, attempts) if isinstance(attempts, int) and not isinstance(attempts, bool) else 0
     offset = attempts % len(variants)

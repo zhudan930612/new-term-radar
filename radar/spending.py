@@ -224,7 +224,11 @@ def _classify(url: str, body: dict, response, prices: dict) -> dict:
                   usage["completion_tokens"] * prices["output"]) / 1e6
         choices = response.get("choices")
         complete = isinstance(choices, list) and len(choices) == 1 and isinstance(choices[0], dict) and choices[0].get("finish_reason") == "stop"
-        return {**_outcome("ok" if complete else "source_failure", actual), "usage": usage}
+        # actual_usd remains a compatibility accounting amount for budget/cache
+        # consumers. Token pricing is NOT a supplier settlement receipt.
+        return {**_outcome("ok" if complete else "source_failure", actual), "usage": usage,
+                "cost_basis": "token_estimate", "estimated_usd": actual,
+                "pricing_snapshot": dict(prices), "settled_usd": None}
     if url != aisa.ROUTER:
         return _outcome("unknown")
     try:
@@ -325,6 +329,30 @@ class JournalError(aisa.AisaError):
     def __init__(self, message: str, failure_kind: str, request_sent: bool = False):
         super().__init__(message)
         self.failure_kind, self.request_sent = failure_kind, request_sent
+
+
+def billing_summary(entries: list[dict]) -> dict:
+    """Read-only attribution, including old journals; never recompute old charges."""
+    result = {"provider_reported_usd": 0.0, "model_estimated_usd": 0.0,
+              "legacy_unattributed_usd": 0.0, "unknown_reserved_usd": 0.0,
+              "unknown_attempts": 0, "attempts": 0,
+              "note": "Token estimates and provider response costs are not account balance changes; legacy actual_usd is retained for compatibility."}
+    for entry in entries:
+        model = entry.get("label") == "qwen3.7-flash"
+        for attempt in entry.get("attempts", [entry]):
+            result["attempts"] += 1
+            amount = attempt.get("actual_usd")
+            known = attempt.get("charge_known", entry.get("status") == "ok")
+            if not known or attempt.get("status") == "pending" or not _number(amount):
+                result["unknown_attempts"] += 1
+                result["unknown_reserved_usd"] += max(attempt.get("reserved_usd", 0), amount or 0)
+            elif model or attempt.get("cost_basis") == "token_estimate":
+                result["model_estimated_usd"] += amount
+            elif entry.get("label") in ALLOWED_DATA_TOOLS:
+                result["provider_reported_usd"] += amount
+            else:
+                result["legacy_unattributed_usd"] += amount
+    return result
 
 
 class Journal:
@@ -518,6 +546,10 @@ class Journal:
                 attempt = {"number": attempt_number, "reserved_usd": reserve, "status": "pending",
                            "outcome": "unknown", "global_stop": True, "charge_known": False,
                            "request_file": f"{digest}.attempt-{attempt_number}.request.json"}
+                if url == aisa.CHAT:
+                    attempt.update(cost_basis="token_estimate", pricing_snapshot=dict(self.prices), settled_usd=None)
+                else:
+                    attempt["cost_basis"] = "provider_response"
                 entry["attempts"].append(attempt)
                 self._sync(entry)
                 save(self.path, self.entries)  # Persist pending reservation before sending.

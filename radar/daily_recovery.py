@@ -66,6 +66,8 @@ def record_attempts(ledger_path, collection, day, round_id=None):
         event = next((r for r in history if r.get("id") == key), None)
         if event is None:
             event = {"id": key, "date": day.isoformat(), "queries": [], "query_events": [], "outcome": "no_confirmed_evidence"}
+            event.update(query_context=copy.deepcopy(task.get("research", {}).get("query_context", {})),
+                         query_variants=list(task.get("research", {}).get("query_variants", [])))
             history.append(event)
             task["search_attempts"] = task.get("search_attempts", 0) + 1
         for row in rows:
@@ -204,7 +206,8 @@ def resume_daily(cfg, state: Path, output: Path, day, origin="manual"):
             result['errors'] = result.get('discovery_errors', []) + errors + result['analysis_errors']
             spending.save(final, result)
             analysis_pending = True
-            assessment = demands.process(cfg["opportunities"]["model"], evidence, ledger_path, day)
+            assessment = demands.process(cfg["opportunities"]["model"], evidence, ledger_path, day,
+                **({"mode": "extract_only"} if cfg["demands"].get("preprocessing_mode") == "extract_only" else {}))
             analysis_pending = False
             result.update(assessment)
         result["errors"] = result.get("discovery_errors", []) + errors + assessment.get("analysis_errors", [])
@@ -234,6 +237,7 @@ def resume_daily(cfg, state: Path, output: Path, day, origin="manual"):
     finally:
         if journal:
             result["reserved_usd"] = journal.reserved
+            result["request_billing"] = spending.billing_summary(journal.entries)
         if external_cache:
             result["external_collection_billing"] = external_cache.billing_summary()
         if before:

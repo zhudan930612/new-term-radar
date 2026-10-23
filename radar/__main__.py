@@ -201,7 +201,7 @@ def main(argv: list[str] | None = None) -> int:
         return serve_mcp()
     prog = "python -m radar" if __package__ == "radar" else "new-term-radar"  # installed, the package has another name
     p = argparse.ArgumentParser(prog=prog, description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("command", choices=["daily", "sources", "keywords", "leads", "pains", "opportunities", "trends", "validate-opportunities", "demand-audit", "research-opportunities", "task-research", "workflow-status"])
+    p.add_argument("command", choices=["daily", "sources", "keywords", "leads", "pains", "opportunities", "trends", "validate-opportunities", "demand-audit", "research-opportunities", "task-research", "workflow-status", "daily-summary"])
     p.add_argument("names", nargs="*", help="for `keywords`: the names to read")
     p.add_argument("--repo", action="append", default=[], metavar="NAME=OWNER/REPO", help="for `keywords`: a name's GitHub repository")
     p.add_argument("--days", type=int, default=7, help="for `leads`: how far back")
@@ -240,6 +240,12 @@ def main(argv: list[str] | None = None) -> int:
         p.error("--resume is only for task-led daily collection")
     if args.trends_action == "resume" and args.command != "validate-opportunities":
         p.error("Validation resume applies only to validate-opportunities")
+    if args.command == "daily-summary":
+        from .daily_summary import command
+        from .opportunity_runner import today_local
+        day = date.fromisoformat(args.date) if args.date else today_local()
+        return command(state, day.isoformat(), Path(args.out) if args.out else None,
+                       ledger_path=Path(args.ledger) if args.ledger else None)
     if args.command == "workflow-status":
         from .opportunity_runner import today_local
         from .daily_recovery import read

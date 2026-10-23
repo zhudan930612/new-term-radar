@@ -38,7 +38,7 @@ DEFAULTS = {
     "tutorials": {"max_leads": 3, "videos": 3, "model": "gpt-4.1-mini"},
     "gsc": {},
     "google_trends": {"enabled": False, "geo": "US"},
-    "demands": {"enabled": True, "free_sources": True, "technology_discovery": False},
+    "demands": {"enabled": True, "free_sources": True, "technology_discovery": False, "preprocessing_mode": "full"},
     "research": {"enabled": False, "reddit_queries_per_day": 4, "pain_tasks_per_day": 3,
                  "query_variants_per_task": 2,
                  "videos_per_task": 2, "chrome_extensions_per_task": 2, "chrome_review_pages": 1,
@@ -62,8 +62,10 @@ def load(path: Path) -> dict:
         (gt["geo"] and (len(gt["geo"]) != 2 or not gt["geo"].isascii() or not gt["geo"].isupper() or not gt["geo"].isalpha()))):
         raise ValueError("Google Trends geo must be a two-letter country code or empty for worldwide")
     c = cfg["opportunities"]
-    if not isinstance(cfg["demands"], dict) or any(not isinstance(v, bool) for v in cfg["demands"].values()):
+    if not isinstance(cfg["demands"], dict) or any(not isinstance(v, bool) for k, v in cfg["demands"].items() if k != "preprocessing_mode"):
         raise ValueError("Demand options must be booleans")
+    if cfg["demands"].get("preprocessing_mode") not in {"full", "extract_only"}:
+        raise ValueError("Demand preprocessing_mode must be full or extract_only")
     budget = c["budget_usd"]
     if budget is not None and (isinstance(budget, bool) or not isinstance(budget, (int, float)) or
                                not math.isfinite(budget) or budget <= 0):

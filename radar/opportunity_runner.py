@@ -183,7 +183,8 @@ def run_daily(cfg: dict, state: Path, output: Path, from_report: Path | None = N
                 daily_recovery.checkpoint_audit(result, evidence, ledger_path, day)
                 spending.save(final, result)
                 analysis_pending = True
-            assessment = (demands.process(c["model"], evidence, ledger_path, day) if cfg.get("demands", {}).get("enabled", True)
+            assessment = (demands.process(c["model"], evidence, ledger_path, day,
+                          **({"mode": "extract_only"} if cfg["demands"].get("preprocessing_mode") == "extract_only" else {})) if cfg.get("demands", {}).get("enabled", True)
                           else opportunities.analyze(c["model"], evidence))
             analysis_pending = False
             result.update(assessment)
@@ -210,6 +211,7 @@ def run_daily(cfg: dict, state: Path, output: Path, from_report: Path | None = N
     finally:
         if journal:
             result["reserved_usd"] = journal.reserved
+            result["request_billing"] = spending.billing_summary(journal.entries)
         if external_cache:
             result["external_collection_billing"] = external_cache.billing_summary()
         if before:

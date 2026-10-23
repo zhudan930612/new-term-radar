@@ -326,6 +326,16 @@ def render(result: dict) -> str:
                   "- GoAnyAPI、TrustMRR 不计入 AIsa 余额差；缺少凭据时对应字段保持未知。", ""]
     lines += render_stage(result)
     research_plan = result.get("research_plan", {})
+    if result.get("query_metrics"):
+        lines += ["## 补证查询效果", "", "查询返回不等于确认补证；未完成轮次不进入确认成功率分母。", "",
+                  "| 来源 | 查询 | 需求原文 | 确认同任务原文 |", "|---|---|---:|---:|"]
+        for row in result["query_metrics"]:
+            if not row.get("task_id"):
+                continue
+            attributed = row["attribution"] == "recorded"
+            count = str(row["confirmed_same_task_count"]) if row["confirmation_status"] == "evaluated" and attributed else "未评估/缺归属"
+            lines.append(f"| {row['source']} | {clean(row['query']).replace('|', '/')} | {row['need_count'] if attributed else '未知'} | {count} |")
+        lines.append("")
     if research_plan.get("items"):
         lines += ["## 下一步任务研究", "", "这里包括待补证种子与已入选方向的后续研究；研究优先级不是商业价值评分，仍需以实际证据决定继续或停止。", ""]
         for item in research_plan["items"]:
@@ -373,7 +383,14 @@ def render(result: dict) -> str:
                f"- 每轮预计费用上限：${result.get('budget_usd', 0):.2f}；供应商最终计费可能偏离报价。")]
     billing = result.get("billing", {})
     if billing.get("charged_usd") is not None:
-        lines += [f"- 运行期间账户扣费：${billing['charged_usd']:.6f}；余额：${billing['after']['balance_usd']:.6f}。"]
+        lines += [f"- 运行期间账户余额变化：${billing['charged_usd']:.6f}；余额：${billing['after']['balance_usd']:.6f}；不等同本轮逐请求结算。"]
+    costs = result.get("request_billing")
+    if costs and not costs.get("attempts"):
+        lines.append("- 请求费用记录不可用或为空；不能据此声称本轮免费。")
+    elif costs:
+        lines += [f"- 数据接口回包费用：${costs['provider_reported_usd']:.6f}；模型按用量估算：${costs['model_estimated_usd']:.6f}。",
+                  f"- 未知费用预留：${costs['unknown_reserved_usd']:.6f}（{costs['unknown_attempts']} 次）；旧记录未归属金额：${costs['legacy_unattributed_usd']:.6f}。",
+                  "- 模型估算不代表供应商实际扣款；保留单价快照，旧账本不重算。"]
     for recovery in result.get("recovery_history", []):
         bill = recovery.get("billing", {})
         charge = bill.get("charged_usd")
