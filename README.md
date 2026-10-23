@@ -1,6 +1,32 @@
+<div align="center">
+
+<img src="docs/logo.svg" width="128" alt="new-term-radar logo: a radar sweep catching a new blip">
+
 # new-term-radar
 
-[中文说明](README.zh-CN.md)
+**Catch the names AI people are about to search for, the day they appear, before keyword tools list them.**
+
+[![PyPI](https://img.shields.io/pypi/v/new-term-radar?color=0ea5e9&label=PyPI)](https://pypi.org/project/new-term-radar/)
+[![Python](https://img.shields.io/badge/python-3.10%2B-3776ab)](https://pypi.org/project/new-term-radar/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-eab308)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/zhuyansen/new-term-radar?logo=github&color=0f172a)](https://github.com/zhuyansen/new-term-radar/stargazers)
+[![Forks](https://img.shields.io/github/forks/zhuyansen/new-term-radar?logo=github&color=0f172a)](https://github.com/zhuyansen/new-term-radar/network/members)
+[![Downloads](https://img.shields.io/pepy/dt/new-term-radar?color=22c55e&label=downloads)](https://pepy.tech/projects/new-term-radar)
+[![Last commit](https://img.shields.io/github/last-commit/zhuyansen/new-term-radar?color=64748b)](https://github.com/zhuyansen/new-term-radar/commits/main)
+
+[![MCP Registry](https://img.shields.io/badge/MCP%20Registry-io.github.zhuyansen%2Fnew--term--radar-0ea5e9)](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.zhuyansen/new-term-radar)
+[![Tessl registry](https://img.shields.io/badge/Tessl-registry-22c55e)](https://tessl.io/registry/skills/github/zhuyansen/new-term-radar)
+[![LobeHub](https://lobehub.com/badge/mcp/zhuyansen-new-term-radar)](https://lobehub.com/mcp/zhuyansen-new-term-radar)
+[![Security-graded by Agent Skills Hub](https://agentskillshub.top/badge/zhuyansen/new-term-radar.svg)](https://agentskillshub.top/skill/zhuyansen/new-term-radar/)
+[![Cursor Directory](https://img.shields.io/badge/Cursor%20Directory-new--term--radar-000000)](https://cursor.directory/plugins/new-term-radar)
+[![ClawHub](https://img.shields.io/badge/ClawHub-new--term--radar-f97316)](https://clawhub.ai/skills/new-term-radar)
+[![skills.sh](https://img.shields.io/badge/skills.sh-zhuyansen%2Fnew--term--radar-0f172a)](https://skills.sh/zhuyansen/new-term-radar)
+
+⭐ **700+ stars on its first day, 1,000 in just over three** · on PyPI, the official MCP Registry, Cursor Directory, LobeHub, Tessl, ClawHub and skills.sh
+
+[Quick start](#quick-start) · [What it reads](#what-it-reads) · [The keyword table](#the-keyword-table) · [Agents and MCP](#use-it-from-an-agent-skills-and-an-mcp-server) · [config.json](#configjson) · [中文说明](README.zh-CN.md)
+
+</div>
 
 A daily report of the names that are starting to surge in AI: new models, products, tools and repos, caught where they are said first, before they show up in keyword tools.
 
@@ -22,9 +48,9 @@ One example it was built around: [Niko1221/Strata](https://github.com/Niko1221/S
 
 ## What it reads
 
-![How the radar works: six signals, a name judge, the keyword table with its page-one check, a daily report and a 14-day check; used from the command line, three Agent Skills, an MCP server or the pains command. What 0.3 and 0.4 added is purple and tagged NEW](docs/radar.en.gif)
+![How the radar works: six signals, a name judge, the keyword table with its page-one check, a daily report and a 14-day check; used from the command line, three Agent Skills, an MCP server or the pains command. What 0.3 to 0.5 added is purple and tagged NEW](docs/radar.en.gif)
 
-Purple, tagged NEW: what 0.3 and 0.4 added (⑥ revenue, ⑦ Reddit asks, the page-one check, the format and ⚡ marks, the `pains` command).
+Purple, tagged NEW: what 0.3 to 0.5 added (⑥ revenue, ⑦ Reddit asks, ⑧ sellers, the page-one check, the format and ⚡ marks, the `pains` command).
 
 | Signal | What it catches | Needs | Cost |
 |---|---|---|---|
@@ -34,6 +60,7 @@ Purple, tagged NEW: what 0.3 and 0.4 added (⑥ revenue, ⑦ Reddit asks, the pa
 | ③ Sitemaps | Words that several new URLs on a site share and its older URLs rarely carried. The example config watches eight AI tool directories (toolify, aixploria, ai-bot.cn, opentools, dang.ai, clipfly, aitoptools, futurepedia) and four MCP and skill directories | the sitemaps you list | free |
 | ③ New sites | Domains registered and first indexed in the last 90 days that already rank for 20+ keywords | AIsa key | about $0.13 per query, weekly |
 | ⑦ Asks | What people ask for on Reddit ("is there an AI tool that…", twelve phrasings): a model keeps the requests and complaints an AI tool could answer and writes each job as people would search it; jobs with searches get the page-one check | AIsa key | about $0.12 a week |
+| ⑧ Sellers | Sites that just put up their first payment link (Stripe Payment Links, Polar, Lemon Squeezy, Gumroad, Creem), from the public link graph with the day each site first linked; new pages of old sellers, platform pages and forum threads left out; the site's own description goes to the keyword table | AIsa key; GoAnyAPI optional, for visits | about $0.40 a week |
 | ⑥ Revenue | Products people pay for, from TrustMRR's verified revenue: the fastest growing ($500+ in 30 days) and the newest listings; one at $0 last time and earning now is called out first. Its own description goes to the keyword table as evidence | TrustMRR key | free, 6 requests, weekly |
 | ④ Search Console | Queries your site got impressions for, for the first time (fresh data) | your own Google token | free |
 | ⑤ Review | Each lead checked in Google Trends 14 days later, against its own baseline; hit rate and days ahead per signal | AIsa key | $0.0012 per search variant |
@@ -110,6 +137,37 @@ TrustMRR's API terms forbid republishing its data and building public SEO pages 
 Once a week the radar searches Reddit for a dozen ways people ask for a tool ("is there an AI tool", "I wish there was a tool", "how do I automate", in `asks.patterns`), keeps the posts of the last week with a score of 2 or more, and has a small model sort them: a request, a complaint, a shared solution, or other. For requests and complaints an AI tool could answer it writes the job the way a person would search it ("add b roll automatically", "convert slides to notes"). Jobs with at least 50 searches a month are listed with their posts and get the page-one check; each becomes a lead. Most asks are too specific to have searches yet: the first real week, 84 posts held 43 asks and only two had 50 searches a month ("best ai tool for research", from a 1,034-point r/PhD thread, and "best ai tool for coding"). So the best-scored of the others are listed too, as ideas rather than keywords. A month of posts read in a trial held a request for "an AI tool to convert PowerPoint lecture slides into notes", the same job a tool-site course uses as its worked example.
 
 Posts are for your own research: quote them, do not republish them.
+
+### ⑧ Sellers: who just started taking money
+
+A product's first payment link says more than its launch post: someone built a thing and asked for money for it. whoismaking.money used to rank sites by the traffic they sent to Stripe's checkout (clickstream data; its last real page in the Internet Archive is from September 2025, and by March 2026 the domain served a parked page with a hidden redirect). The same kind of data is on sale through AIsa's Similarweb at about $6 for 20 rows: too dear to cover the long tail. Payment links are a cheap stand-in. They are ordinary links on the seller's own page, so the public link graph shows them with the day each first appeared. Stripe has 143,000 linking sites and Polar 1,900 (every link a payment link); for Lemon Squeezy, Gumroad and Creem only store checkouts, `/l/` products and `/payment/` pages count, since their other links point at their own marketing sites and, for Gumroad, at profile pages spam networks use.
+
+Once a week the radar reads, for each platform, the newest 100 payment links and the newest 100 sites to link to it for the first time (about $0.06 a platform), keeps the links of those new sites, and lists the sellers with their visits (GoAnyAPI) and their own home-page title and description, which also go to the keyword table as evidence. The first real run put janitorai.com, framer.com, pub.dev, Flathub and an n8n forum thread on top: user pages on big platforms that link to someone's payment link. So the linking page must be the site's own home, pricing or product page, not a post, thread or listing; the site must rank 350 or lower on DataForSEO's 0 to 1,000 scale; and above 300,000 visits a month it counts as a platform. A small model then sorts the new sellers by kind from their own words (keyword rules when it cannot), and AI and software come first, then templates, courses and the rest; within a kind the busiest first. On the first sorted run all twelve listed were software (a live-captions app for the Mac, a chat-with-PDF tool, an AI writing app for macOS, an MCP catalog, a Japanese audit SaaS among them), where traffic alone had put a Blender add-on site, a recipe blog and a design gallery first. A payment link means the site sells, not that it sells well, and checkouts made by code at payment time are not seen.
+
+A new link is not a new seller. A first version took the newest links for new sellers; on 2026-10-14 we checked them against the day each site first linked to the platform. A site that has sold for years puts the same link on every new page it makes (one carries its Stripe link on each of its well-permit pages), and two thirds of the 2,000 newest Stripe links came from such sites: of the 60 Stripe sellers that day's list showed, 17 had just started. So a seller is new by the day its site first linked to the platform (DataForSEO's referring domains), and the report says how many links came from sites that sold already.
+
+### History: every seller back to 2019
+
+```bash
+python -m radar history pull            # every site linking to the five platforms today: about $18
+python -m radar history read            # their home-page titles and descriptions, free
+python -m radar history sort            # their kind, by a small model: about $0.005 for 60 sites
+python -m radar history --out sellers.csv
+```
+
+`history pull` reads every site that links to each platform today, one row per site with the day it first linked: DataForSEO's one-per-domain backlinks, oldest first, 1,000 a call ($0.06). On 2026-10-14 that day matched the referring-domain first-link day for all 1,704 Polar sites both lists name alike. It stops at `--max-usd` (default 20) and resumes where it stopped. `history` alone counts sellers per month, platform and kind; `--out` writes them all to a CSV. The rows are DataForSEO's: for research, not to republish.
+
+How far back it goes, from the link graph's monthly count of sites linking for the first time (2026-10-14; one call per platform, $0.03):
+
+| Platform | Counted from | Sites since 2019 | New sites a month, May to September 2026 | Linking today |
+|---|---|---|---|---|
+| Stripe | June 2021 (a few dozen a month before) | 306,000 | 6,500 to 8,200 (14,200 in June) | 143,000 |
+| Gumroad | 2019 | 530,000 | 4,200 to 5,700, while 6,400 to 9,400 drop their links | 140,000 |
+| Lemon Squeezy | 2023 | 34,000 | 600 to 1,100 | 18,000 |
+| Polar | 2024 | 2,285 | 109 to 268 | 1,943 |
+| Creem | 2025 | 1,708 | 74 to 268 | 1,449 |
+
+Two cautions. In October 2023 Stripe's count jumped from 3,216 to 16,206, and new links from 1.2 million to 20 million the month after: the crawler grew, not the sellers. And a pull holds only sites that still link, so the older the month, the more of its sellers are missing. For Gumroad, Lemon Squeezy and Creem the monthly counts also include links to their own sites and to profiles; the pull keeps those apart (only payment links count as sellers).
 
 ### ⚡ What tutorial viewers ask for
 
@@ -249,17 +307,14 @@ Then ask your agent for "today's new AI keywords", "an AI listening report" or "
 
 ### MCP server
 
-For clients that speak MCP (Claude Code, Cursor, Claude Desktop):
-
-```bash
-pip install "new-term-radar[mcp]"
-```
+For clients that speak MCP (Claude Code, Cursor, Claude Desktop). With [uv](https://docs.astral.sh/uv/) there is nothing to install first:
 
 ```json
 {
   "mcpServers": {
     "new-term-radar": {
-      "command": "new-term-radar-mcp",
+      "command": "uvx",
+      "args": ["--with", "mcp", "new-term-radar", "mcp"],
       "env": {
         "AISA_API_KEY": "...",
         "RADAR_CONFIG": "/absolute/path/to/config.json",
@@ -269,6 +324,8 @@ pip install "new-term-radar[mcp]"
   }
 }
 ```
+
+Without uv: `pip install "new-term-radar[mcp]"`, then `"command": "new-term-radar-mcp"` and no `args`. The Claude Code plugin above brings this server with it: when the plugin is enabled, Claude Code asks for your AIsa key (and, optionally, a GoAnyAPI key) and keeps them in the system keychain; the server reads the example config and keeps its state in the plugin's data folder.
 
 | Tool | What it returns | Cost and time |
 |---|---|---|
@@ -317,10 +374,15 @@ The tests cover the logic (name extraction, scoring, the store, the reports) and
 
 ## Thanks
 
+- Thanks to [哥飞 @gefei55](https://x.com/gefei55) for the groundwork: the radar is built on what he lays out in his WeChat articles and on his way of looking for signals on social media first, together with how I find sources from running my own social media accounts.
 - [子木 @CoderJeffLee](https://x.com/CoderJeffLee) for the idea behind the keyword table: a new name and the generic terms downstream of it belong in one table, each with a decision.
 - [饭特稀 | Fentix @fantexi997](https://x.com/fantexi997) for [GoAnyAPI](https://goanyapi.com), the optional source of related queries and one-country Trends series.
 
 The diagram is drawn by `docs/make_diagram.py` (needs `rsvg-convert` and `ffmpeg`).
+
+## Star history
+
+[![Star history](https://api.star-history.com/svg?repos=zhuyansen/new-term-radar&type=Date)](https://star-history.com/#zhuyansen/new-term-radar&Date)
 
 ## License
 

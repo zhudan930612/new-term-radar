@@ -443,7 +443,8 @@ class Journal:
                 _immutable(self.directory / attempt["response_file"], response_raw)
                 attempt.update(_classify(request["url"], request["body"], response, self.prices))
                 if request["url"] == aisa.CHAT and attempt["status"] == "ok" and entry.get("status") == "ok" and _number(entry.get("actual_usd")):
-                    attempt["actual_usd"] = entry["actual_usd"]
+                    attempt.update(actual_usd=entry["actual_usd"], estimated_usd=entry["actual_usd"],
+                                   pricing_snapshot=None, cost_basis="legacy_token_estimate", settled_usd=None)
             except (OSError, ValueError, KeyError, TypeError, aisa.AisaError) as exc:
                 attempt["error_type"] = type(exc).__name__
             entry["attempts"] = [attempt]

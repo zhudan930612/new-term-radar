@@ -1,6 +1,32 @@
+<div align="center">
+
+<img src="docs/logo.svg" width="128" alt="新词雷达 logo：雷达扫到一个新亮点">
+
 # new-term-radar（新词雷达）
 
-[English](README.md)
+**AI 圈马上要被搜的新名字，出现当天就抓到，赶在关键词工具收录之前。**
+
+[![PyPI](https://img.shields.io/pypi/v/new-term-radar?color=0ea5e9&label=PyPI)](https://pypi.org/project/new-term-radar/)
+[![Python](https://img.shields.io/badge/python-3.10%2B-3776ab)](https://pypi.org/project/new-term-radar/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-eab308)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/zhuyansen/new-term-radar?logo=github&color=0f172a)](https://github.com/zhuyansen/new-term-radar/stargazers)
+[![Forks](https://img.shields.io/github/forks/zhuyansen/new-term-radar?logo=github&color=0f172a)](https://github.com/zhuyansen/new-term-radar/network/members)
+[![Downloads](https://img.shields.io/pepy/dt/new-term-radar?color=22c55e&label=downloads)](https://pepy.tech/projects/new-term-radar)
+[![Last commit](https://img.shields.io/github/last-commit/zhuyansen/new-term-radar?color=64748b)](https://github.com/zhuyansen/new-term-radar/commits/main)
+
+[![MCP Registry](https://img.shields.io/badge/MCP%20Registry-io.github.zhuyansen%2Fnew--term--radar-0ea5e9)](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.zhuyansen/new-term-radar)
+[![Tessl registry](https://img.shields.io/badge/Tessl-registry-22c55e)](https://tessl.io/registry/skills/github/zhuyansen/new-term-radar)
+[![LobeHub](https://lobehub.com/badge/mcp/zhuyansen-new-term-radar)](https://lobehub.com/mcp/zhuyansen-new-term-radar)
+[![Security-graded by Agent Skills Hub](https://agentskillshub.top/badge/zhuyansen/new-term-radar.svg)](https://agentskillshub.top/skill/zhuyansen/new-term-radar/)
+[![Cursor Directory](https://img.shields.io/badge/Cursor%20Directory-new--term--radar-000000)](https://cursor.directory/plugins/new-term-radar)
+[![ClawHub](https://img.shields.io/badge/ClawHub-new--term--radar-f97316)](https://clawhub.ai/skills/new-term-radar)
+[![skills.sh](https://img.shields.io/badge/skills.sh-zhuyansen%2Fnew--term--radar-0f172a)](https://skills.sh/zhuyansen/new-term-radar)
+
+⭐ **首日 700+ 星，3 天出头破 1000** · 已上 PyPI、官方 MCP Registry、Cursor Directory、LobeHub、Tessl、ClawHub、skills.sh
+
+[快速开始](#快速开始) · [它读什么](#它读什么) · [新词表](#新词表) · [在 agent 里用](#在-agent-里用skill-和-mcp-服务器) · [config.json](#configjson) · [English](README.md)
+
+</div>
 
 **新增 Web 网站机会模式**：先核对真实用户问题，再筛选适合网页解决的任务；支持零推荐、跨日证据池和同日复用。通过 `opportunities.enabled` 启用，详见 [使用说明](docs/web-opportunities.md)。下面保留原版新词发现和趋势分析说明，其中热度、搜索量与营收筛选口径不作为 Web 需求晋级门槛。
 
@@ -30,9 +56,9 @@
 
 ## 它读什么
 
-![雷达的流程：六类信号、名字判断、带首页竞争的新词表、日报和 14 天复核；四种用法：命令行、3 个 Agent Skill、MCP 服务器、pains 痛点命令。0.3 和 0.4 新增的部分是紫色并标了「新增」](docs/radar.zh.gif)
+![雷达的流程：六类信号、名字判断、带首页竞争的新词表、日报和 14 天复核；四种用法：命令行、3 个 Agent Skill、MCP 服务器、pains 痛点命令。0.3 到 0.5 新增的部分是紫色并标了「新增」](docs/radar.zh.gif)
 
-紫色、标「新增」的是 0.3 和 0.4 加的：⑥ 收入、⑦ Reddit 求助、首页竞争、格式和 ⚡ 标记、`pains` 痛点命令。
+紫色、标「新增」的是 0.3 到 0.5 加的：⑥ 收入、⑦ Reddit 求助、⑧ 新卖家、首页竞争、格式和 ⚡ 标记、`pains` 痛点命令。
 
 | 信号 | 抓什么 | 需要 | 花费 |
 |---|---|---|---|
@@ -42,6 +68,7 @@
 | ③ 竞品 sitemap | 某个站新增的几个网址共用、而它的旧网址里很少出现的词。示例配置盯着 8 个 AI 工具导航站（toolify、aixploria、ai-bot.cn、opentools、dang.ai、clipfly、aitoptools、futurepedia）和 4 个 MCP、skill 目录 | 你列出的 sitemap | 免费 |
 | ③ 新站 | 近 90 天注册且首次被收录、已经有 20 个以上排名词的域名 | AIsa key | 每个查询约 $0.13，每周一次 |
 | ⑦ 求助 | Reddit 上大家在要什么（"is there an AI tool that…" 等 12 种问法）：模型留下 AI 工具能解决的求助和抱怨，把每件事写成大家会搜的说法；有搜索量的再做首页竞争检查 | AIsa key | 每周约 $0.12 |
+| ⑧ 新卖家 | 刚挂上第一条收款链接的站（Stripe Payment Links、Polar、Lemon Squeezy、Gumroad、Creem），来自公开外链数据，带这个站第一次挂链接的日期；老卖家的新页面、平台上的用户页和论坛帖不算；站点自己的介绍交给新词表 | AIsa key；GoAnyAPI 可选，用来看访问量 | 每周约 $0.40 |
 | ⑥ 收入 | 有人付钱的产品，来自 TrustMRR 核验过的收入：增长最快的（30 天收入 $500 以上）和最新上榜的；上次 $0、这次过了门槛的排最前。它自己的介绍会作为依据交给新词表 | TrustMRR key | 免费，6 次请求，每周一次 |
 | ④ Search Console | 你的站第一次获得曝光的查询词（用新鲜数据） | 你自己的 Google 授权 | 免费 |
 | ⑤ 复盘 | 每条线索 14 天后去 Google Trends 核对，和它自己的基线比；按信号统计命中率和提前天数 | AIsa key | 每个搜索写法 $0.0012 |
@@ -120,6 +147,37 @@ TrustMRR 的 API 条款禁止转载它的数据，也禁止拿它做公开的 SE
 雷达每周在 Reddit 上按十来种求工具的问法搜一次（"is there an AI tool"、"I wish there was a tool"、"how do I automate" 等，见 `asks.patterns`），留下最近一周、得分 2 以上的帖子，让一个小模型分类：求助、抱怨、分享的解法，或其他。对 AI 工具能解决的求助和抱怨，它把要做的事写成大家会搜的说法（"add b roll automatically"、"convert slides to notes"）。月搜索量 50 以上的列出来，附上帖子并做首页竞争检查，每件事记为一条线索。大多数求助太具体，还没有搜索量：第一次真实运行，一周 84 个帖子里有 43 个求助，只有两个月搜索量过 50（"best ai tool for research"，来自 r/PhD 一个 1,034 分的帖子；以及 "best ai tool for coding"）。所以其余得分最高的也会单独列出来，作为点子而不是关键词。试跑时读一个月的帖子，找到了「有没有 AI 工具能把 PPT 课件转成笔记」——正是一门工具站课程拿来做示范的那个需求。
 
 帖子只供自己研究：可以引用，不要转载。
+
+### ⑧ 新卖家：谁刚开始收钱
+
+一个产品挂出第一条收款链接，比发布帖更说明问题：有人做了东西，并开口要钱。whoismaking.money 曾经按「往 Stripe 结账页送了多少流量」给网站排名（点击流数据；互联网档案馆里它最后一个真实页面是 2025 年 9 月的，到 2026 年 3 月域名已是带隐藏跳转的停放页）。同类数据通过 AIsa 的 Similarweb 买得到，但每 20 行约 $6，覆盖不了长尾。收款链接是便宜的替代：它们是卖家自己页面上的普通链接，公开外链数据里查得到，还带每条首次出现的日期。Stripe 有 14.3 万个站链着它，Polar 1,900 个（每条都是收款链接）；Lemon Squeezy、Gumroad、Creem 只算店铺结账页、`/l/` 商品页和 `/payment/` 页，因为它们其余的链接指向自己的官网，Gumroad 还有大量被垃圾外链网络利用的个人主页。
+
+雷达每周对每个平台读最新的 100 条收款链接，和最新的 100 个第一次链到这个平台的站（每个平台约 $0.06），只留这些新站的链接，列出它们的访问量（GoAnyAPI）和首页自己的标题、介绍，介绍同时交给新词表当依据。第一次真实运行，排在最前面的是 janitorai.com、framer.com、pub.dev、Flathub 和一个 n8n 论坛帖：都是大平台上的用户页，链着别人的收款链接。所以现在要求链接所在的页面是这个站自己的首页、价格页或产品页，不能是帖子、话题或列表页；站点在 DataForSEO 0 到 1,000 的评分里不超过 350；月访问超过 30 万的算平台。然后由一个小模型根据各站自己的介绍按类型分好（调用失败时用关键词规则），AI 和软件排最前，然后是模板、课程和其他；同一类里访问量大的在前。第一次按类型排序，列出的 12 个全是软件（其中有 Mac 实时字幕、和 PDF 对话的工具、macOS 上的 AI 写作 app、一个 MCP 目录、一个日本的内控审计 SaaS），而只按访问量排时，排在前面的是 Blender 插件站、食谱博客和设计图库。有收款链接只说明它在卖，不说明卖得好；付款时才由代码生成的结账页看不到。
+
+新链接不等于新卖家。最初的版本把最新的链接当成新卖家；2026-10-14 我们按「这个站第一次链到这个平台的日期」核对了一遍：卖了好几年的站，每做一个新页面都会挂上同一条链接（有个站在它的每个水井许可证页面上都挂着同一条 Stripe 链接），最新的 2,000 条 Stripe 链接里有三分之二来自这样的站；当天名单上的 60 个 Stripe 卖家，只有 17 个是真的刚开始。所以现在按这个站第一次链到平台的日期判断新卖家（DataForSEO 的 referring domains），报告里也会写出有多少条链接来自老卖家。
+
+### 历史：2019 年以来的全部卖家
+
+```bash
+python -m radar history pull            # 今天还链着这五个平台的所有站：约 $18
+python -m radar history read            # 读它们首页的标题和介绍，免费
+python -m radar history sort            # 小模型按类型分：每 60 个站约 $0.005
+python -m radar history --out sellers.csv
+```
+
+`history pull` 读今天链着每个平台的所有站，每个站一行，带它第一次挂链接的日期：用 DataForSEO 每个域名取一条的外链，从最早的排起，每次 1,000 条（$0.06）。2026-10-14 核对过：两份名单写法相同的 1,704 个 Polar 站，这个日期和 referring domains 记录的首次日期全部一致。花到 `--max-usd`（默认 20）就停，下次从停下的地方接着拉。只跑 `history` 会按月份、平台、类型统计卖家数；加 `--out` 把全部卖家写进 CSV。这些数据来自 DataForSEO：只用于研究，不要转载发布。
+
+能追溯多久，看外链数据里每月第一次链到平台的站数（2026-10-14；每个平台一次调用，$0.03）：
+
+| 平台 | 从何时有量 | 2019 年以来累计 | 2026 年 5 到 9 月每月新站 | 今天还链着 |
+|---|---|---|---|---|
+| Stripe | 2021 年 6 月（之前每月几十个以内） | 30.6 万 | 6,500 到 8,200（6 月 1.42 万） | 14.3 万 |
+| Gumroad | 2019 年 | 53 万 | 4,200 到 5,700，同时每月有 6,400 到 9,400 个站撤掉链接 | 14.0 万 |
+| Lemon Squeezy | 2023 年 | 3.4 万 | 600 到 1,100 | 1.8 万 |
+| Polar | 2024 年 | 2,285 | 109 到 268 | 1,943 |
+| Creem | 2025 年 | 1,708 | 74 到 268 | 1,449 |
+
+看这张表要注意两点。2023 年 10 月 Stripe 从 3,216 跳到 16,206，下个月新外链从 120 万涨到 2,000 万：是爬虫扩大了，不是卖家暴增。另外拉下来的只有今天还链着的站，月份越早，缺的卖家越多。Gumroad、Lemon Squeezy、Creem 的月度数字还包括指向它们官网和个人主页的链接；拉取时会分开（只有收款链接算卖家）。
 
 ### ⚡ 教程观众在要什么
 
@@ -252,17 +310,14 @@ npx skills add zhuyansen/new-term-radar
 
 ### MCP 服务器
 
-给支持 MCP 的客户端用（Claude Code、Cursor、Claude Desktop）：
-
-```bash
-pip install "new-term-radar[mcp]"
-```
+给支持 MCP 的客户端用（Claude Code、Cursor、Claude Desktop）。装了 [uv](https://docs.astral.sh/uv/) 就什么都不用先装：
 
 ```json
 {
   "mcpServers": {
     "new-term-radar": {
-      "command": "new-term-radar-mcp",
+      "command": "uvx",
+      "args": ["--with", "mcp", "new-term-radar", "mcp"],
       "env": {
         "AISA_API_KEY": "...",
         "RADAR_CONFIG": "/绝对路径/config.json",
@@ -272,6 +327,8 @@ pip install "new-term-radar[mcp]"
   }
 }
 ```
+
+没有 uv：先 `pip install "new-term-radar[mcp]"`，再把 `"command"` 改成 `"new-term-radar-mcp"`、去掉 `args`。上面的 Claude Code 插件已经自带这个服务器：启用插件时 Claude Code 会让你填 AIsa key（GoAnyAPI key 可选），存进系统钥匙串；服务器用示例配置，状态存在插件自己的数据目录里。
 
 | 工具 | 返回什么 | 花费和耗时 |
 |---|---|---|
@@ -320,10 +377,15 @@ python -m pytest -q tests
 
 ## 致谢
 
+- 感谢[哥飞 @gefei55](https://x.com/gefei55) 奠定的基础：雷达的构建基于他在微信文章中阐述的内容，以及他首先在社交媒体上寻找信号的方法，加上做自己本身自媒体的信源寻找思路做的。
 - [子木 @CoderJeffLee](https://x.com/CoderJeffLee)：新词表的想法来自他的建议，新名字和它下游的通用词应该放在同一张表里，每行给出决策。
 - [饭特稀 | Fentix @fantexi997](https://x.com/fantexi997)：[GoAnyAPI](https://goanyapi.com)，相关查询和单个国家 Trends 走势这个可选数据源。
 
 流程图由 `docs/make_diagram.py` 生成（需要 `rsvg-convert` 和 `ffmpeg`）。
+
+## Star 增长
+
+[![Star history](https://api.star-history.com/svg?repos=zhuyansen/new-term-radar&type=Date)](https://star-history.com/#zhuyansen/new-term-radar&Date)
 
 ## 许可
 

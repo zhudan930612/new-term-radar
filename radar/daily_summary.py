@@ -7,7 +7,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from . import demands, opportunities, spending, task_research
@@ -56,7 +56,8 @@ def render(summary: dict) -> str:
     return "\n".join(lines) + "\n\n" + opportunities.render(view)
 
 
-def command(state: Path, day: str, output: Path | None = None, *, ledger_path: Path | None = None) -> int:
+def command(state: Path, day: str, output: Path | None = None, *, ledger_path: Path | None = None, emit=True) -> int:
+    day = date.fromisoformat(day).isoformat()
     root = state / "web-opportunities" / day
     ledger_path = ledger_path or state / "demand-ledger.json"
     protected = [ledger_path, root / "result.json", root / "api/requests.json"]
@@ -76,12 +77,14 @@ def command(state: Path, day: str, output: Path | None = None, *, ledger_path: P
     targets = {target.resolve(), target.with_suffix(".json").resolve()}
     reserved = {p.resolve() for p in protected} | {root.joinpath(n).resolve() for n in
         ("result.md", "research-plan.json", "collection-plan.json", "semantic-audit-plan.json")}
-    if targets & reserved or target.suffix.lower() != ".md":
+    if (targets & reserved or target.suffix.lower() != ".md" or
+            target.resolve().is_relative_to(state.resolve()) and target.resolve() != (root / "summary.md").resolve()):
         raise ValueError("Summary output must be a separate Markdown path")
     if any(p.read_bytes() != data for p, data in raw.items()) or ledger_path.with_suffix(".audit.lock").exists():
         raise ValueError("Inputs changed during summary; retry after writers finish")
     target.parent.mkdir(parents=True, exist_ok=True)
     spending.save(target.with_suffix(".json"), summary)
     target.write_text(render(summary), encoding="utf-8")
-    print(json.dumps({"summary": str(target), "date": day, "status": result["status"], "paid_calls": 0}, ensure_ascii=False))
+    if emit:
+        print(json.dumps({"summary": str(target), "date": day, "status": result["status"], "paid_calls": 0}, ensure_ascii=False))
     return 0

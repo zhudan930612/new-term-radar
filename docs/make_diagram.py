@@ -2,7 +2,7 @@
 
   python docs/make_diagram.py <oss-zh|oss-en> <out-basename> [--plain]
 
-What 0.3 and 0.4 added is drawn in purple, with a NEW tag; --plain draws it like the rest.
+What 0.3 to 0.5 added is drawn in purple, with a NEW tag; --plain draws it like the rest.
 rsvg-convert renders each frame (it does not run SVG animation) and ffmpeg joins them.
 """
 import math, subprocess, sys, tempfile
@@ -25,6 +25,7 @@ ZH = {
     "s3": ("③ 竞品与新站", "sitemap 新页 · 每周新站", "+8 个 AI 工具导航站"), "s4": ("④ 搜索控制台", "首次曝光的词 · 可选"),
     "s6": ("⑥ 有人付钱的产品", "TrustMRR · 每周", "增长最快 · 从 $0 到有收入"),
     "s7": ("⑦ Reddit 求助", "12 种问法 · 每周", "模型筛出要做的事"),
+    "s8": ("⑧ 刚开始收钱的站", "收款链接 · 每周", "Stripe 等 5 家"),
     "judge": ("名字判断：是具体名字吗", "得分 ≥ 0.5 才留下", "+格式：视频>语音>图片 · ⚡ 一键机会"),
     "known": ("剔除你已经覆盖的词",),
     "sources": ("源头报告（每 8 小时）", "有新名字才出", "附推文原文"),
@@ -32,20 +33,21 @@ ZH = {
     "page": ("首页竞争", "前十弱站 · KD · 广告 · 已有页面 · 在投广告", "首页挤满的「优先」降为「观察 ↓」"),
     "evidence": ("取证（AIsa）", "高赞推文 · README", "+付费产品的自述"),
     "goany": ("GoAnyAPI（可选）", "相关查询 · 美国日走势", CREDIT_SOURCE),
-    "daily": ("日报（每天一次）", "新词表在最前 · 线索存入 radar.db", "+⑥ 收入 · ⑦ 求助 · ⚡ 教程观众在要什么"),
+    "daily": ("日报（每天一次）", "新词表在最前 · 线索存入 radar.db", "+⑥ 收入 · ⑦ 求助 · ⑧ 新卖家 · ⚡ 教程观众在要什么"),
     "review": ("14 天后 Google Trends 复核", "名字和通用词都复核 · 不计未结算的最后两天"),
     "credit": f"建议：{CREDIT_TABLE}",
     "use_h": "四种用法，同一套引擎",
     "use": [("命令行 + 定时任务", "daily · sources", "keywords · leads"), ("3 个 Agent Skill", "一站式", "只收集 · 只做关键词"),
             ("MCP 服务器", "查线索 · 出新词表", "跑一次"), ("pains 痛点命令", "Chrome 低星评论", "Reddit · 教程评论")],
     "tag": "新增",
-    "legend": ("信号与取证", "报告产出", "新词表", "0.3–0.4 新增", "命中率写回日报"),
+    "legend": ("信号与取证", "报告产出", "新词表", "0.3–0.5 新增", "命中率写回日报"),
 }
 EN = {
     "s1": ("① X and HF", "every 8 hours", "+trending HF Spaces"), "s2": ("② GitHub", "breakout repos"),
     "s3": ("③ Sitemaps", "new pages · new sites", "+8 AI tool directories"), "s4": ("④ Search Console", "optional"),
     "s6": ("⑥ What people pay for", "TrustMRR · weekly", "fastest growing · from $0"),
     "s7": ("⑦ Reddit asks", "12 phrasings · weekly", "the jobs people want done"),
+    "s8": ("⑧ Just started selling", "payment links · weekly", "Stripe + 4 more"),
     "judge": ("Name judge: a name, or a word?", "a score of 0.5 or more stays", "+format: video>voice>image · ⚡ one-click"),
     "known": ("Drop the terms you already cover",),
     "sources": ("Sources report (every 8 h)", "only on a new name", "with the posts"),
@@ -53,14 +55,14 @@ EN = {
     "page": ("Page one", "weak sites · KD · ads · pages built · advertisers", "a crowded \"prioritize\" becomes \"watch ↓\""),
     "evidence": ("Evidence (AIsa)", "top posts · README", "+a paying product's own words"),
     "goany": ("GoAnyAPI (optional)", "related queries · US curve", CREDIT_SOURCE),
-    "daily": ("Daily report (once a day)", "keyword table first · leads in radar.db", "+⑥ revenue · ⑦ asks · ⚡ what viewers ask"),
+    "daily": ("Daily report (once a day)", "keyword table first · leads in radar.db", "+⑥ revenue · ⑦ asks · ⑧ sellers · ⚡ viewers ask"),
     "review": ("Google Trends check, 14 days later", "names and generic terms · last two days left out"),
     "credit": f"Idea: {CREDIT_TABLE}",
     "use_h": "Four ways in, one engine",
     "use": [("Command line", "daily · sources", "keywords · leads"), ("3 Agent Skills", "one run,", "or its two halves"),
             ("MCP server", "leads · keyword table", "run"), ("pains command", "Chrome reviews", "Reddit · tutorials")],
     "tag": "NEW",
-    "legend": ("signals", "reports", "keyword table", "new in 0.3–0.4", "hit rate fed back"),
+    "legend": ("signals", "reports", "keyword table", "new in 0.3–0.5", "hit rate fed back"),
 }
 VARIANTS = {"oss-zh": ZH, "oss-en": EN}
 
@@ -107,6 +109,7 @@ PATHS = [
     ("p4", [(650, 100), (430, 140)], "#D85A30", False, False, 2.4, 1.8),
     ("p6", [(220, 179), (240, 179)], "#7F77DD", False, True, 1.2, 0.2),
     ("p7", [(540, 179), (520, 179)], "#7F77DD", False, True, 1.2, 0.8),
+    ("p8b", [(220, 262), (231, 262), (231, 200), (240, 200)], "#7F77DD", False, True, 1.6, 0.5),
     ("p7b", [(730, 179), (748, 179), (748, 432), (730, 432)], "#7F77DD", False, True, 2.8, 0.4),
     ("p5", [(380, 218), (380, 246)], "#888780", False, False, 1.2, 0.3),
     ("p8", [(300, 290), (130, 318)], "#1D9E75", False, False, 1.6, 0.0),
@@ -127,7 +130,7 @@ def scene(T, marks):
         box(30, 36, 160, 64, AMB, T["s1"], marks), box(210, 36, 160, 64, AMB, T["s2"], marks),
         box(390, 36, 160, 64, AMB, T["s3"], marks), box(570, 36, 160, 64, AMB, T["s4"], marks),
         box(30, 140, 190, 78, AMB, T["s6"], marks, new=True), box(240, 140, 280, 78, GRY, T["judge"], marks),
-        box(540, 140, 190, 78, AMB, T["s7"], marks, new=True),
+        box(540, 140, 190, 78, AMB, T["s7"], marks, new=True), box(30, 230, 190, 64, AMB, T["s8"], marks, new=True),
         box(240, 246, 280, 44, GRY, T["known"], marks),
         box(30, 318, 200, 60, GRN, T["sources"], marks),
         box(260, 318, 470, 156, BLU, T["table"], marks, title_dy=-48),

@@ -37,7 +37,7 @@ Say the cost and the time before either command, and do not run `daily` twice in
 
 The first `daily` run on a machine only builds snapshots, so it reports GitHub breakouts and little else. Say so; do not present it as a quiet day.
 
-On Mondays (or with `--asks`) `daily` also reads what people asked for on Reddit that week (⑦, about 0.12 USD): jobs an AI tool could do, sized and checked for room on page one. With `--revenue` and a `TRUSTMRR_API_KEY` it reads the products people pay for (⑥).
+On Mondays (or with `--asks`) `daily` also reads what people asked for on Reddit that week (⑦, about 0.12 USD): jobs an AI tool could do, sized and checked for room on page one. It also lists the sites that just put up a payment link (⑧, Stripe, Polar, Lemon Squeezy, Gumroad, Creem; about 0.25 USD): new products people already pay for, AI and software first. A payment link means the site sells, not that it sells well. With `--revenue` and a `TRUSTMRR_API_KEY` it reads the products people pay for (⑥).
 
 **The user wants to know what people complain about for a kind of tool** ("what's wrong with AI headshot tools?"):
 

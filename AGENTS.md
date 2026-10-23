@@ -10,6 +10,7 @@
 
 - 修改需求入口、筛选规则、跨日账本或报告口径：读 [Web 机会工作流](docs/web-opportunities.md)。
 - 运行日报、处理 `awaiting_audit`、导入语义复核或调整自动任务：读 [自动任务与审核交接](docs/web-automation.md)，使用其中的 CLI 和观察文件格式。
+- 研究后汇总、费用分类、补证改词、评论身份或预处理优化：读 [日报质量与研究后的汇总](docs/daily-quality.md)。
 - 修改或执行免费趋势核验：读 [Google Trends 验证](docs/google-trends.md)。
 - 排查本机环境、加密凭据或启动脚本：读 `LOCAL-SETUP.md`（本机文件，不随仓库分发）。旧版功能查 `README.zh-CN.md`，注意其中原版流程与本地新增流程的区别。
 

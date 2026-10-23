@@ -3,14 +3,14 @@ from __future__ import annotations
 
 import re
 
-from . import opportunity, config, judge, usecases
+from . import opportunity, sellers, config, judge, usecases
 from .i18n import t
 
 SHOWN = 20
 OTHER_TERMS = 15
 POSTS_SHOWN = 3   # posts quoted in full per term
 # signal key -> label key, in the order of how early the signal comes
-KINDS = ["x", "hf", "breakout", "sitemap", "newsite", "revenue", "ask", "usecase", "cosearch", "watch"]
+KINDS = ["x", "hf", "breakout", "sitemap", "newsite", "revenue", "ask", "seller", "usecase", "cosearch", "watch"]
 
 
 def leads(cfg: dict, blocks: dict[str, dict]) -> tuple[list[dict], dict]:
@@ -160,6 +160,26 @@ def _asks_lines(ak: dict, cfg: dict) -> list[str]:
     return lines + ["", t("asks_note")]
 
 
+def _seller_lines(sl: dict) -> list[str]:
+    if sl.get("skipped"):
+        return []
+    lines = ["", t("sellers_h"), ""]
+    rows = sl.get("sellers") or []
+    if not rows:
+        return lines + [t("recent_none", why="; ".join(sl.get("errors") or []) or sl.get("error") or t("sellers_none"))]
+    lines += [t("sellers_intro", links=sl["links"], old=sl.get("old", 0), new=sl["new"]), "", t("sellers_cols"), "|---|---|---|---|---|---|"]
+    for s in rows:
+        what = _cell((s["title"] + (" — " + s["description"] if s["description"] else ""))[:110]) or t("dash")
+        seen = f"{s['visits']:,}" if s["visits"] else t("dash")
+        lines.append(f"| [{s['host']}](https://{s['host']}/) | {t('sk_' + s.get('kind', 'other'))} | {sellers.LABEL[s['platform']]} | {what} | "
+                     f"{seen} | {s['first_seen']} |")
+    if sl.get("errors"):
+        lines.append(t("sellers_err", why="; ".join(sl["errors"][:3])))
+    if sl.get("kind_error"):
+        lines.append(t("sellers_kind_err"))
+    return lines + ["", t("sellers_note")]
+
+
 def _tutorial_lines(tu: dict) -> list[str]:
     if tu.get("skipped") or not (tu.get("leads") or tu.get("errors")):
         return []
@@ -234,6 +254,9 @@ def _status_lines(b: dict[str, dict], extra: dict[str, dict]) -> list[str]:
     ok = "" if bo.get("error") or bo.get("skipped") else t("st_breakout_ok", n=bo["searched"]) + \
         (t("st_breakout_first") if bo.get("first_run") else "")
     lines.append(t("st_breakout", state=_state(bo, ok)))
+    sl = b.get("seller", {"skipped": True})
+    if not sl.get("skipped"):
+        lines.append(t("st_sellers", state=_state(sl, "" if sl.get("error") else t("st_sellers_ok", links=sl["links"], old=sl.get("old", 0), new=sl["new"]))))
     ak = b.get("ask", {"skipped": True})
     if not ak.get("skipped"):
         lines.append(t("st_asks", state=_state(ak, "" if ak.get("error") else t("st_asks_ok", read=ak["read"], asks=ak["asks"]))))
@@ -276,11 +299,12 @@ def daily(cfg: dict, lead: list[dict], b: dict[str, dict], gsc: dict, rev: dict,
     lines += _new_site_lines(b.get("newsite", {"skipped": True}), cfg)
     lines += _revenue_lines(b.get("revenue", {"skipped": True}), cfg)
     lines += _asks_lines(b.get("ask", {"skipped": True}), cfg)
+    lines += _seller_lines(b.get("seller", {"skipped": True}))
     lines += _tutorial_lines(extra.get("tutorials", {"skipped": True}))
     lines += _gsc_lines(gsc)
     lines += _review_lines(cfg, rev, summ)
     lines += _status_lines(b, extra)
-    lines.append(t("cost", cost=_cost(b["x"], rev, b.get("newsite", {}), b.get("ask", {}), extra.get("usecases", {}),
+    lines.append(t("cost", cost=_cost(b["x"], rev, b.get("newsite", {}), b.get("ask", {}), b.get("seller", {}), extra.get("usecases", {}),
                                       extra.get("tutorials", {}))))
     return "\n".join(lines) + "\n"
 

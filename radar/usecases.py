@@ -535,7 +535,7 @@ def run(cfg: dict, state: Path, names: list[str], repos: dict[str, str], today: 
             "competition_errors": comp_errors, "cost_micros": cost + c0 + c2 + c3 + c4 + c5}
 
 
-READ_KINDS = {"x", "hf", "breakout", "newsite", "revenue"}
+READ_KINDS = {"x", "hf", "breakout", "newsite", "revenue", "seller"}
 READ_MIN = 0.8
 
 

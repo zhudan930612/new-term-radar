@@ -1,4 +1,4 @@
-"""Offline regression checks for the 0.4.0 / demand-workflow integration."""
+"""Offline regression checks for the 0.5.0 / demand-workflow integration."""
 import json
 from datetime import date
 
@@ -28,12 +28,12 @@ def test_existing_free_skip_set_blocks_new_paid_signals(cfg, tmp_path, monkeypat
     monkeypatch.setattr(cli, "date", Monday)
     cfg["opportunities"]["enabled"] = web
     # Undo the suite's default disabling of paid steps, so it cannot mask this regression.
-    cfg["asks"]["weekday"] = cfg["revenue"]["weekday"] = 0
+    cfg["asks"]["weekday"] = cfg["revenue"]["weekday"] = cfg["sellers"]["weekday"] = 0
     cfg["tutorials"]["max_leads"] = 3
     cfg["competition"]["max_rows"] = 8
     for module, name in [(cli.asks, "asks"), (cli.revenue, "products"), (cli.pains, "tutorial_asks"),
                          (cli.new_sites, "new_sites"), (cli.review, "review"), (cli.usecases, "run"),
-                         (competition, "assess")]:
+                         (competition, "assess"), (cli.sellers, "sellers")]:
         monkeypatch.setattr(module, name, blocked)
     monkeypatch.setattr(cli.sources, "hf_new", lambda *a: {"models": 1, "spaces": 1, "terms": [
         {"term": "demo video workflow", "note": "synthetic free source", "examples": [], "posts": [
@@ -48,7 +48,7 @@ def test_existing_free_skip_set_blocks_new_paid_signals(cfg, tmp_path, monkeypat
 
     def render(cfg, leads, blocks, gsc, review, summary, extra):
         assert leads[0]["one_click"] == "tutorial"
-        assert all(blocks[k] == {"skipped": True} for k in ("ask", "revenue", "newsite"))
+        assert all(blocks[k] == {"skipped": True} for k in ("ask", "revenue", "newsite", "seller"))
         assert extra["tutorials"] == extra["usecases"] == {"skipped": True}
         rendered.append(True)
         return "Offline free report"
@@ -57,7 +57,7 @@ def test_existing_free_skip_set_blocks_new_paid_signals(cfg, tmp_path, monkeypat
     argv = ["daily", "--config", write_config(tmp_path, cfg), "--state", str(tmp_path / "state"),
             "--skip", "x,newsites,review,judge,usecases,breakout,sitemaps,gsc"]
     if forced:
-        argv += ["--asks", "--revenue"]
+        argv += ["--asks", "--revenue", "--sellers"]
     assert cli.main(argv) == 0
     assert rendered == [True]
 
@@ -66,7 +66,7 @@ def test_existing_free_skip_set_blocks_new_paid_signals(cfg, tmp_path, monkeypat
 def test_web_routes_keep_the_budgeted_runner(cfg, tmp_path, monkeypatch, command):
     cfg["opportunities"]["enabled"] = command == "daily"
     for module, name in [(cli.asks, "asks"), (cli.revenue, "products"), (cli.pains, "tutorial_asks"),
-                         (competition, "assess")]:
+                         (competition, "assess"), (cli.sellers, "sellers")]:
         monkeypatch.setattr(module, name, blocked)
     called = []
 

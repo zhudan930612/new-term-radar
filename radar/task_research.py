@@ -320,7 +320,7 @@ def command(action: str, ledger_path: Path, day: date | str | None = None, obser
     if summary_path.exists():
         from .daily_summary import command as summarize
         try:
-            summarize(ledger_path.parent, day.isoformat(), ledger_path=ledger_path)
+            summarize(ledger_path.parent, day.isoformat(), ledger_path=ledger_path, emit=False)
         except (OSError, ValueError, KeyError) as exc:
             # The evidence-backed import already committed. A derived output
             # failure must not ask the user to repeat research or paid collection.

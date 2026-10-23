@@ -1,6 +1,6 @@
 {
   "name": "new-term-radar",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Three skills that find the names of new AI models, products and repositories as they surface, and size the search terms behind them with Google Ads volume and Google Trends.",
   "author": {
     "name": "Jason Zhu",
@@ -9,5 +9,43 @@
   "homepage": "https://github.com/zhuyansen/new-term-radar",
   "repository": "https://github.com/zhuyansen/new-term-radar",
   "license": "MIT",
-  "keywords": ["seo", "keyword-research", "google-trends", "ai-trends"]
+  "keywords": [
+    "seo",
+    "keyword-research",
+    "google-trends",
+    "ai-trends"
+  ],
+  "mcpServers": {
+    "new-term-radar": {
+      "command": "uvx",
+      "args": [
+        "--with",
+        "mcp==2.3.0",
+        "new-term-radar==0.5.0",
+        "mcp"
+      ],
+      "env": {
+        "AISA_API_KEY": "${user_config.aisa_api_key}",
+        "GOANYAPI_API_KEY": "${user_config.goanyapi_api_key}",
+        "RADAR_CONFIG": "${CLAUDE_PLUGIN_ROOT}/config.example.json",
+        "RADAR_STATE": "${CLAUDE_PLUGIN_DATA}/state"
+      }
+    }
+  },
+  "userConfig": {
+    "aisa_api_key": {
+      "type": "string",
+      "title": "AIsa API key",
+      "description": "Pays for the radar's lookups: X posts, Google Ads volumes, Google Trends and the model. recent_leads works without it. A key: https://go.aisa.one/yansen-zhu (referral link)",
+      "sensitive": true,
+      "default": ""
+    },
+    "goanyapi_api_key": {
+      "type": "string",
+      "title": "GoAnyAPI API key (optional)",
+      "description": "Optional: what people searched together with each name, and one country's daily Trends series. A key: https://goanyapi.com",
+      "sensitive": true,
+      "default": ""
+    }
+  }
 }

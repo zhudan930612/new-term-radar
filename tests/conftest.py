@@ -21,6 +21,7 @@ def english(monkeypatch):
     monkeypatch.setitem(config.DEFAULTS["competition"], "max_rows", 0)
     monkeypatch.setitem(config.DEFAULTS["asks"], "weekday", None)          # weekly signals stay off unless a test asks
     monkeypatch.setitem(config.DEFAULTS["tutorials"], "max_leads", 0)
+    monkeypatch.setitem(config.DEFAULTS["sellers"], "weekday", None)
 
 
 @pytest.fixture

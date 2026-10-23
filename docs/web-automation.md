@@ -61,6 +61,8 @@ web_fit为browser/server/native/unknown。只有满足两独立用户、同一�
 
 priority取0–3，是研究次序；大于0必须引用本任务来源。已解决使用resolved且next_review=null；暂停使用paused并填未来90天内复查日期。不得从文案关键词自动推断已解决。未正式审核或证据版本变化时优先级失效；到期/变化先本地复核，不自动恢复付费查询。query_variants最多两条自然短语，不含搜索操作符。
 
+新暂停决定同时填写 `waiting_on`（public_feedback/product_delivery/public_sample/user_material）和可观察的 `resume_condition`；不要把所有缺口都写成等待用户提供材料。旧暂停决定缺条件时，在其原定到期复核时补齐。查询连续两轮审核后无补证时，按 `query_revision_required` 先本地复核，并用有原文依据的 `query_context`（role/step/alternative）或新的 `query_variants` 改善检索。字段完整契约见 [日报质量](daily-quality.md)。
+
 计划的 `merge_context` 另列最多18个已审核历史任务，供跨日同任务核对。若本批 tasks 与另一条 tasks/merge_context 确实是相同用户工作、相同输出、兼容约束，可在任务观察JSON顶层加入可选 `groups`：
 
 ```json
@@ -141,6 +143,8 @@ merge_context从全活跃池按任务相关性选取，模型输出的merge_sugg
 ```
 
 需要明确研究某方向时可重复传 `--task-id d-真实ID`，最多25项。计划保存plan_id、证据和研究版本；默认优先处理本地复核项，再按已审核优先级及探索名额安排。plan不修改账本，也不访问网络。
+
+读取计划内的 `identity_checks`。有价值的 YouTube 评论缺少作者身份或评论定位时，优先在原有免费页数额度内补查，不能用增加付费评论量来替代。仅按已保存的可核验证据，在 amend 后的全源 observations 中导入 `identity_observations`，随后继续逐任务审核；访问受阻继续保留未知。
 
 将实际读取的材料保存到计划旁的validation-evidence/，随后导入：
 

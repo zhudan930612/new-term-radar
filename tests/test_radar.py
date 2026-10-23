@@ -1085,3 +1085,166 @@ def test_tutorial_asks_only_for_leads_marked_one_click(cfg, monkeypatch):
     assert [x["term"] for x in out["leads"]] == ["opus blender game"] and out["cost_micros"] == 2000 + 1000
     text = "\n".join(report._tutorial_lines(out))
     assert "Too many manual steps (wants a tool, 1) → one click blender export" in text
+
+
+# --- ⑧ sellers: sites that just put up a payment link ---------------------------------------------
+
+from radar import sellers  # noqa: E402
+
+
+def _backlinks(rows):
+    def where(d):          # a forum thread is not the forum selling anything
+        return f"https://{d}/t/freelancer-invoice-inbox/185482" if d.startswith("community.") else f"https://{d}/pricing"
+    return {"b": {"tasks": [{"result": [{"items": [{"domain_from": d, "url_to": u, "url_from": where(d),
+                                                     "first_seen": "2026-10-14 03:00:00 +00:00", "domain_from_rank": 10}
+                                                    for d, u in rows]}]}]}}
+
+
+def _sites(names):
+    return {"d": {"tasks": [{"result": [{"items": [{"domain": d, "first_seen": "2026-10-13 21:00:00 +00:00"} for d in names]}]}]}}
+
+
+def test_sellers_keep_payment_links_and_leave_out_the_rest(cfg, tmp_path, monkeypatch):
+    cfg["sellers"]["platforms"] = ["stripe", "lemonsqueezy", "gumroad", "creem"]
+    answers = {
+        "buy.stripe.com": [("pestora.framer.website", "https://buy.stripe.com/aFa28rbpG9"), ("github.com", "https://buy.stripe.com/x"),
+                           ("permit-records-demo.com", "https://buy.stripe.com/old"), ("try.demotools.dev", "https://buy.stripe.com/t")],
+        "lemonsqueezy.com": [("meeting-demo.app", "https://merit.lemonsqueezy.com/checkout/buy/c0b375"), ("seo.shop", "https://lemonsqueezy.com/"),
+                             ("x.app", "https://www.lemonsqueezy.com/checkout")],
+        "gumroad.com": [("janemaker.com", "https://janemaker.gumroad.com/l/toxins-in-textiles"), ("spam-network-demo.com", "https://spamseller.gumroad.com/"),
+                        ("community.n8n.io", "https://x.gumroad.com/l/invoice-flow")],
+        "creem.io": [("launch-demo.app", "https://www.creem.io/payment/prod_59Tt3"), ("docs.example", "https://docs.creem.io/api-reference")],
+    }
+    # the sites whose first link is new; permit-records-demo.com has sold for years, demotools.dev is named by its parent domain
+    new = {target: [d for d, _ in rows if d not in ("permit-records-demo.com", "try.demotools.dev")] for target, rows in answers.items()}
+    new["buy.stripe.com"].append("demotools.dev")
+
+    def call(calls):
+        target = calls[0]["arguments"]["body"][0]["target"]
+        return (_sites(new[target]) if calls[0]["tool"] == sellers.DOMAINS else _backlinks(answers[target])), 27600
+    monkeypatch.setattr(sellers.aisa, "call", call)
+    monkeypatch.setattr(sellers, "page_words", lambda host: ("Pestora — pest control software", "Book and bill pest jobs") if host.startswith("pestora")
+                        else ("", ""))
+    kinds = {"pestora.framer.website": "ai", "meeting-demo.app": "ai", "janemaker.com": "content", "launch-demo.app": "ai", "try.demotools.dev": "ai"}
+
+    def chat(model, system, user, max_tokens=1500):
+        return json.dumps([{"i": x["i"], "kind": kinds[x["domain"]]} for x in json.loads(user)])
+    monkeypatch.setattr(sellers.aisa, "chat", chat)
+    first = sellers.sellers(cfg, tmp_path)
+    hosts = {s["host"]: s for s in first["sellers"]}
+    assert [s["kind"] for s in first["sellers"]] == ["ai", "ai", "ai", "ai", "content"]                 # AI and software first
+    assert set(hosts) == {"pestora.framer.website", "meeting-demo.app", "janemaker.com", "launch-demo.app", "try.demotools.dev"}
+    assert first["old"] == 1                                                                            # an old seller's new page
+    assert hosts["pestora.framer.website"]["first_seen"] == "2026-10-13"                                # the day the site first linked
+    assert hosts["pestora.framer.website"]["term"] == "pestora" and hosts["janemaker.com"]["term"] == "janemaker"
+    assert first["first_run"] and first["cost_micros"] == 8 * 27600
+    lead = [x for x in first["terms"] if x["term"] == "pestora"][0]
+    assert lead["about"] == ("https://pestora.framer.website/", "Pestora — pest control software. Book and bill pest jobs")
+    text = "\n".join(report._seller_lines(first))
+    assert "| [meeting-demo.app](https://meeting-demo.app/) | AI / software | Lemon Squeezy |" in text and "not that it sells well" in text
+    again = sellers.sellers(cfg, tmp_path)
+    assert again["sellers"] == [] and not again["first_run"]                                              # each site reported once
+
+
+def test_a_seller_is_new_only_when_the_site_first_linked_lately():
+    sites = {"demotools.dev": "2026-10-13", "pestora.framer.website": "2026-10-12"}
+    assert sellers.first_day("try.demotools.dev", sites) == "2026-10-13"           # named by its parent domain
+    assert sellers.first_day("www.pestora.framer.website", sites) == "2026-10-12"
+    assert sellers.first_day("other.framer.website", sites) == ""                  # a sibling on the same host is another site
+    assert sellers.first_day("permit-records-demo.com", sites) == ""                    # a new page of an old seller
+
+
+def test_a_seller_link_sits_on_the_sites_own_page():
+    assert sellers.own_page("https://vouch-demo.com/") and sellers.own_page("https://write-demo.com/pricing")
+    assert not sellers.own_page("https://community.n8n.io/t/freelancer-invoice/185482")
+    assert not sellers.own_page("https://www.framer.com/marketplace/templates/aurius/")
+    assert not sellers.own_page("https://flathub.org/apps/uk.co.weather")
+
+
+def test_seller_kinds_fall_back_to_keyword_rules():
+    rows = [{"host": "captions-demo.app", "title": "NotchLive — Live Captions for Mac", "description": ""},
+            {"host": "themes-demo.com", "title": "Astro Themes & Tailwind CSS Templates", "description": ""},
+            {"host": "news-demo.com", "title": "Murcia Today News", "description": ""}]
+    got, error = sellers.kinds("gpt-4.1-mini", rows)          # the call is blocked in tests: rules take over
+    assert got == {"captions-demo.app": "ai", "themes-demo.com": "template", "news-demo.com": "donation"} and error
+
+
+# --- history: every seller back to 2019 ------------------------------------------------------------
+
+from radar import seller_history  # noqa: E402
+
+
+def _history_page(items, token):
+    return {"h": {"tasks": [{"status_code": 20000, "result": [{"items": items, "search_after_token": token}]}]}}
+
+
+def test_history_pulls_every_page_and_picks_up_where_it_stopped(tmp_path, monkeypatch):
+    monkeypatch.setattr(seller_history, "PAGE", 2)
+    item = lambda d, url, day: {"domain_from": d, "url_from": f"https://{d}/", "url_to": url, "first_seen": f"{day} 08:00:00 +00:00",  # noqa: E731
+                                "domain_from_rank": 40}
+    pages = {"": ([item("janemaker.com", "https://janemaker.gumroad.com/l/toxins", "2019-03-02"),
+                   item("spam-network-demo.com", "https://spamseller.gumroad.com/", "2019-04-01")], "t1"),
+             "t1": ([item("nocode.school", "https://nocode.gumroad.com/l/course", "2024-05-06")], "")}
+    sent = []
+
+    def call(calls):
+        body = calls[0]["arguments"]["body"][0]
+        sent.append(body)
+        assert body["order_by"] == ["first_seen,asc"] and body["mode"] == "one_per_domain"
+        return _history_page(*pages[body.get("search_after_token", "")]), 60000
+    monkeypatch.setattr(seller_history.aisa, "call", call)
+    db = seller_history.connect(tmp_path)
+    first = seller_history.pull(db, ["gumroad"], 50000)                        # the budget runs out after one page
+    assert first["platforms"]["gumroad"] == {"rows": 2, "done": False, "cost_micros": 60000, "spent_micros": 60000, "error": ""}
+    rest = seller_history.pull(db, ["gumroad"], 1_000_000)
+    assert sent[-1]["search_after_token"] == "t1" and rest["platforms"]["gumroad"]["done"]   # it went on from the saved token
+    assert seller_history.pull(db, ["gumroad"], 1_000_000)["cost_micros"] == 0               # done: nothing more to buy
+    got = {h: (day, pays) for h, day, pays in db.execute("SELECT host, first_seen, pays FROM sites")}
+    assert got == {"janemaker.com": ("2019-03-02", 1), "spam-network-demo.com": ("2019-04-01", 0), "nocode.school": ("2024-05-06", 1)}
+
+
+def test_history_stops_on_a_refused_page(tmp_path, monkeypatch):
+    refused = {"h": {"tasks": [{"status_code": 40501, "status_message": "Invalid Field: 'search_after_token'."}]}}
+    monkeypatch.setattr(seller_history.aisa, "call", lambda calls: (refused, 0))
+    db = seller_history.connect(tmp_path)
+    got = seller_history.pull(db, ["polar"], 1_000_000)["platforms"]["polar"]
+    assert not got["done"] and "Invalid Field" in got["error"]
+
+
+def test_history_reads_sorts_and_counts(tmp_path, monkeypatch):
+    db = seller_history.connect(tmp_path)
+    db.executemany("INSERT INTO sites (platform, host, first_seen, page, link, rank, pays) VALUES (?, ?, ?, '', '', 0, ?)",
+                   [("stripe", "captions-demo.app", "2025-02-03", 1), ("polar", "captions-demo.app", "2025-03-01", 1),
+                    ("stripe", "gone.example", "2021-07-01", 1), ("gumroad", "spam-network-demo.com", "2019-04-01", 0)])
+    monkeypatch.setattr(seller_history.sellers, "page_words",
+                        lambda host, limit: ("NotchLive — Live Captions for Mac", "") if host == "captions-demo.app" else ("", ""))
+    assert seller_history.read(db, 2) == {"step": "read", "read": 2, "answered": 1}            # spam-network-demo.com is no seller: not read
+    monkeypatch.setattr(seller_history.sellers.aisa, "chat", lambda model, system, user, max_tokens=1500: '[{"i": 0, "kind": "ai"}]')
+    sorted_ = seller_history.sort(db, "gpt-4.1-mini", 1_000_000)
+    assert sorted_["sorted"] == 1 and sorted_["by_rules"] == 0                                 # the dead site is left unsorted
+    out = tmp_path / "sellers.csv"
+    s = seller_history.summary(db, out)
+    assert ["2025", "ai", 2] in s["by_year_kind"] and ["2021", "no answer", 1] in s["by_year_kind"]
+    assert ["2025-02", "stripe", 1] in s["by_month"] and out.read_text(encoding="utf-8-sig").count("captions-demo.app") == 2
+    assert "| Stripe | 2 | 2 |" in seller_history.text(s)
+
+
+def test_page_words_reads_a_gzipped_head_cut_short(monkeypatch):
+    import gzip
+    import random
+    head = "<html><head><title>NotchLive — Live Captions</title><meta name='description' content='Captions for your Mac'>".encode()
+    body = gzip.compress(head + random.Random(1).randbytes(50_000))      # noise: the stream is long and cut after 400 bytes
+
+    class Response:
+        headers = {"Content-Encoding": "gzip"}
+
+        def read(self, n):
+            return body[:n]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+    monkeypatch.setattr(sellers.urllib.request, "urlopen", lambda req, timeout: Response())
+    assert sellers.page_words("captions-demo.app", 400) == ("NotchLive — Live Captions", "Captions for your Mac")

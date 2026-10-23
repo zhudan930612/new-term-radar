@@ -39,9 +39,9 @@ python -m radar opportunities --config config.json --state state
 
 单独执行 Python/PowerShell 只到模型预处理和审核计划，不能替代 Codex 语义复核及浏览器访问。`--from-report` 仅复用当天旧采集快照。同日重复运行只读已有结果，不重新采集或计费。日报 JSON 权威文件为 `state/web-opportunities/YYYY-MM-DD/result.json`，旁边 `result.md` 为报告副本。
 
-兼容上游 0.4.0：保留 `asks`、`tutorials`、`pains`、`revenue` 和搜索首页竞争能力。Web 日报按上述阶段接入原始需求与后续研究，不继承旧版的热度/搜索量筛选门槛或“有营收即证明需求”的推断。独立 `keywords`、`pains` 及旧版付费日报仍可使用，但不受 Web 日报请求账本保护，不能当作离线测试执行。
+兼容上游 0.5.0：保留 `asks`、`tutorials`、`pains`、`revenue` 和搜索首页竞争能力。Web 日报按上述阶段接入原始需求与后续研究，不继承旧版的热度/搜索量筛选门槛或“有营收即证明需求”的推断。独立 `keywords`、`pains` 及旧版付费日报仍可使用，但不受 Web 日报请求账本保护，不能当作离线测试执行。
 
-已有免费启动方式继续有效：`daily --skip x,newsites,review,judge,usecases`（可追加其他跳过项）会同时跳过上游新增的 `asks`、`tutorials`、`revenue`。完整免费跳过集合优先于 `--asks`、`--revenue` 强制运行标志；免费结果仍是原版线索报告，不能视作已完成 Web 需求审核。
+已有免费启动方式继续有效：`daily --skip x,newsites,review,judge,usecases`（可追加其他跳过项）会同时跳过上游新增的 `asks`、`tutorials`、`revenue`、`sellers`。完整免费跳过集合优先于 `--asks`、`--revenue`、`--sellers` 强制运行标志；免费结果仍是原版线索报告，不能视作已完成 Web 需求审核。
 
 质量优先配置使用 `opportunities.budget_usd: null`，不设旧的每轮 $0.20 金额上限；仍保留有界采样、实时询价、费用预留、请求账本、缓存和余额保护，不会自动充值。金额上限设置为正数时仍按配置执行。AIsa 每个付费请求发出前记账，可用余额扣除 $0.01 余量不足时停止。最终账单可能与报价不同；阶段请求账本与前后余额差分别报告，账户并发调用不能全部归因本轮。GoAnyAPI 和 TrustMRR 不包含在 AIsa 余额/费用中，也不受其余额保护，单独显示来源及费用缺口。
 
@@ -83,3 +83,5 @@ YouTube 评论的抓取日不等于发表日。保留供应商的相对发表时
 
 
 日报质量优化、研究后的最新汇总、费用分类、补证改词和评论身份核验见 [日报质量与研究后的汇总](daily-quality.md)。最终汇报前运行 `daily-summary --state state --date YYYY-MM-DD`，同时保留原始日报和跨日需求池。
+
+上游 `sellers` 和 `history` 保留为独立商业背景研究能力，不接入 Web 日报采集或晋级。收款链接不证明成交；`history pull/sort` 及旧版 sellers 会收费且不受 Web 日报账本保护，不能用于免费验证。

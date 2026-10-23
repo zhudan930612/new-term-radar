@@ -36,6 +36,8 @@ DEFAULTS = {
     "pains": {"model": "gpt-4.1-mini", "extensions": 5, "review_pages": 2, "max_stars": 3, "reddit_time": "year", "videos": 3,
               "reddit_queries": ["{k} alternative", "{k} frustrating", '"{k}" "doesn\'t work"', "{k} wish there was"]},
     "tutorials": {"max_leads": 3, "videos": 3, "model": "gpt-4.1-mini"},
+    "sellers": {"weekday": 0, "platforms": ["stripe", "polar", "lemonsqueezy", "gumroad", "creem"], "per_platform": 100,
+                "max_leads": 12, "visits": True, "rank_max": 350, "max_visits": 300000, "pool": 60, "model": "gpt-4.1-mini"},
     "gsc": {},
     "google_trends": {"enabled": False, "geo": "US"},
     "demands": {"enabled": True, "free_sources": True, "technology_discovery": False, "preprocessing_mode": "full"},
