@@ -48,9 +48,9 @@ One example it was built around: [Niko1221/Strata](https://github.com/Niko1221/S
 
 ## What it reads
 
-![How the radar works: six signals, a name judge, the keyword table with its page-one check, a daily report and a 14-day check; used from the command line, three Agent Skills, an MCP server or the pains command. What 0.3 to 0.5 added is purple and tagged NEW](docs/radar.en.gif)
+![How the radar works: six signals, a name judge, the keyword table with its page-one check, a daily report and a 14-day check; used from the command line, three Agent Skills, an MCP server or the pains command. What 0.6.0 added is purple and tagged NEW](docs/radar.en.gif)
 
-Purple, tagged NEW: what 0.3 to 0.5 added (⑥ revenue, ⑦ Reddit asks, ⑧ sellers, the page-one check, the format and ⚡ marks, the `pains` command).
+Purple, tagged NEW: what 0.6.0 added. On the keyword table: word age, markets, page-one shape, the twelve months, your own rank, what else holds page one (threads, an AI overview) and the exact-match .com. The first words ③'s new sites rank for, what ChatGPT recommends for ⑦'s asks, three more payment platforms and the builders on ⑧, ⑨ just listed, ⑩ money and the evidence beside the names. All of it is in [CHANGELOG.md](CHANGELOG.md).
 
 | Signal | What it catches | Needs | Cost |
 |---|---|---|---|
@@ -58,12 +58,16 @@ Purple, tagged NEW: what 0.3 to 0.5 added (⑥ revenue, ⑦ Reddit asks, ⑧ sel
 | ① Hugging Face | Models and Spaces (the demos people try) new to the trending top 50; quantised copies and a model's own demo grouped under the base name | nothing | free |
 | ② GitHub breakout | A repo under 14 days old averaging 200+ stars a day, or +400 since yesterday; adds the search variants people use ("niko strata") | nothing (a GitHub token raises the rate limit) | free |
 | ③ Sitemaps | Words that several new URLs on a site share and its older URLs rarely carried. The example config watches eight AI tool directories (toolify, aixploria, ai-bot.cn, opentools, dang.ai, clipfly, aitoptools, futurepedia) and four MCP and skill directories | the sitemaps you list | free |
-| ③ New sites | Domains registered and first indexed in the last 90 days that already rank for 20+ keywords | AIsa key | about $0.13 per query, weekly |
-| ⑦ Asks | What people ask for on Reddit ("is there an AI tool that…", twelve phrasings): a model keeps the requests and complaints an AI tool could answer and writes each job as people would search it; jobs with searches get the page-one check | AIsa key | about $0.12 a week |
-| ⑧ Sellers | Sites that just put up their first payment link (Stripe Payment Links, Polar, Lemon Squeezy, Gumroad, Creem), from the public link graph with the day each site first linked; new pages of old sellers, platform pages and forum threads left out; the site's own description goes to the keyword table | AIsa key; GoAnyAPI optional, for visits | about $0.40 a week |
+| ③ New sites | Domains registered and first indexed in the last 90 days that already rank for 20+ keywords, each new one with the first words it ranks for in Google's top 20, in any country: searches a site that new already reached | AIsa key | about $0.13 per query, weekly; about $0.013 a new site for its words |
+| ⑦ Asks | What people ask for on Reddit ("is there an AI tool that…", twelve phrasings), X, Stack Exchange (Software Recommendations and three more) and Freelancer.com: a model keeps the requests and complaints an AI tool could answer and writes each job as people would search it; jobs with searches get the page-one check | AIsa key | about $0.12 a week, plus a few cents for X |
+| ⑧ Sellers | Sites that just put up their first payment link (Stripe Payment Links, Polar, Lemon Squeezy, Gumroad, Creem, Paddle, Dodo Payments, Waffo Pancake), from the public link graph with the day each site first linked; new pages of old sellers, platform pages, forums and one link shared by several new sites (a network's) left out; the site's own description goes to the keyword table, and with GoAnyAPI its visits, its domain's registration and where its visitors come from (the AI share) | AIsa key; GoAnyAPI optional | about $0.50 a week |
+| ⑧b Builders | Sites just built with Lovable or v0 and newsletters just started on beehiiv, read off their badges; only the software among them becomes a lead | AIsa key | about $0.15 a week |
+| ⑨ Just listed | New on Product Hunt, Show HN, OpenRouter, Civitai, the App Store's top-grossing charts and awesome lists (free); weekly, the pages Google indexed under Figma plugins, There's An AI For That and the Chrome Web Store, trending searches on Douyin, TikTok and Reddit, and rising searches next to root words ("ai generator") | nothing for the free lists; AIsa and GoAnyAPI keys for the rest | free; about $0.02 a path, $0.001 a trending list, 6 GoAnyAPI credits a root word |
+| ⑩ Money | The other sites on a paying tool site's AdSense account (its owner's other niches), and the advertisers new on your own terms (Google Ads Transparency) | GoAnyAPI key | 3 credits a site each way, 4 a term; weekly |
+| Beside the names | For the day's strongest new names: new domains carrying the name (whois, or crt.sh certificates), Wikipedia views, what Google knows it as, Discord servers; for paying products, the "alternative", "vs", "free", "pricing" and "review" searches | AIsa key; GoAnyAPI for Discord | about $0.12 a name read by whois, $0.09 for the searches |
 | ⑥ Revenue | Products people pay for, from TrustMRR's verified revenue: the fastest growing ($500+ in 30 days) and the newest listings; one at $0 last time and earning now is called out first. Its own description goes to the keyword table as evidence | TrustMRR key | free, 6 requests, weekly |
 | ④ Search Console | Queries your site got impressions for, for the first time (fresh data) | your own Google token | free |
-| ⑤ Review | Each lead checked in Google Trends 14 days later, against its own baseline; hit rate and days ahead per signal | AIsa key | $0.0012 per search variant |
+| ⑤ Review | Each lead checked in DataForSEO Trends 14 days later, against its own baseline; hit rate and days ahead per signal | AIsa key | $0.0012 per search variant |
 | Keyword table | For the day's new names: the generic search terms behind them (what people do with the new thing), each sized, checked for room on page one, and given a decision | AIsa key; [GoAnyAPI](https://goanyapi.com) key optional | about $0.18 a day for 5 names, $0.30 with GoAnyAPI |
 | Name judge | A small model scores every term: the name of one specific thing, or a common word? | AIsa key | a fraction of a cent per run |
 
@@ -74,14 +78,13 @@ Prices are what AIsa charged in October 2026. With the example config (35 X acco
 A name is half of what you need. "SynthID Detector" has a short life as a keyword and belongs to Google; the job it does, "ai image detector", is what people keep searching, and nobody owns it. Each day the radar reads the new names once more and writes one table with both:
 
 ```
-| Keyword | Type | Behind | New? | Est. searches/day | Started rising | Peak vs gpts | Peak day | Last 7 days vs the 7 before | Now | Page one | Decision |
-| **photocraft** 🖼 | name | — | yes | 12747 | 2026-10-05 | 97 vs 3.1 | 2026-10-09 | — | still rising | — | **prioritize** |
-| **claude haiku 5.5** | name | — | yes | 1863 | 2026-10-07 | 100 vs 23.7 | 2026-10-08 | ×6.0 | still rising | — | **prioritize** |
-| **ai image detector** 🖼 | generic | synthid detector | no | 2537 | — | 87 vs 31.6 | 2026-10-04 | ×1.2 | flat | — | watch |
-| **photoshop alternative** ⚠ | generic | photocraft | no | 244 | — | 61 vs 61.7 | 2026-10-08 | ×1.8 | flat | — | skip |
+| Keyword | Type | Behind | New? | Est. searches/day | Started rising | Peak vs gpts | Peak day | Last 7 days vs the 7 before | Now | First searched | Markets (searches/KD) | Page one | Page-one shape | Decision |
+| **photocraft** 🖼 | name | — | yes | 12747 | 2026-10-05 | 97 vs 3.1 | 2026-10-09 | — | still rising | 2026-10-04 🆕 | **best US** · US 110/0 · DE 20/0 · FR 20/0 · JP 10/31 | — | beatable · 1 home / 6 inner · 2 platform · exact title ×6 | **prioritize** |
+| **ai image detector** 🖼 | generic | synthid detector | no | 2537 | — | 87 vs 31.6 | 2026-10-04 | ×1.2 | flat | 2023-02-19 | **best US** · US 74k/37 · DE 3.6k/48 · FR 2.9k/47 · JP 720/31 | — | — | watch |
+| **photoshop alternative** ⚠ | generic | photocraft | no | 244 | — | 61 vs 61.7 | 2026-10-08 | ×1.8 | flat | — | — | — | — | skip |
 ```
 
-(a real run, 2026-10-12, shortened; the Page one column came later, see below)
+(a real run, 2026-10-12, shortened; the Page one column came later, and First searched, Markets and Page-one shape in 0.6.0, from a run of 2026-10-18, see below. 0.6.0 also adds a `12 months` column after `Now` and an action after the decision, `→ update yours`, `→ improve yours` or `→ new page`: 10 to 13 below.)
 
 How it is made (`radar/usecases.py`):
 
@@ -91,7 +94,22 @@ How it is made (`radar/usecases.py`):
 3. **Screen**: a second call scores how well the name answers each phrase, marks brands, and spots the names of other things; the loosely related ones are dropped. For Claude Haiku 5.5 it dropped all six proposed ("ai coding assistant", "github copilot alternative"); for SynthID Detector it kept all five.
 4. **Volume**: Google Ads monthly searches for the rest, one batch call. Phrases under `min_volume` are dropped; most are.
 5. **Trends**, twice per row: the term alone gives the shape (new or not, the day it started rising, the peak, the last week against the week before, what it is doing now); the term beside a benchmark keyword (`gpts` by default) gives the size.
-6. **Page one**, for the rows that would be acted on (eight at most): Google's first page (about $0.002 a keyword), the rating of each site on it (GoAnyAPI, $0.002 a site, kept 30 days) and the keyword difficulty ($0.012 a call). With a GoAnyAPI key also who already builds for the term and who pays for it: the pages Google holds with it in the title from the last month (`pages built`) and the domains running Google ads on it (`advertisers`, from Ads transparency), $0.008 a row. `open` = three or more of the ten results sit on sites rated under 30, or difficulty under 20; `crowded` = none does and difficulty is 40 or more; `mixed` in between. Under the table it names the weakest site on page one, where a new page can get in, and what kinds of pages hold it (tools, lists, articles, videos, forums). Ads on the page mean someone pays for that click.
+6. **Page one**, for the rows that would be acted on (eight at most): Google's first page (about $0.002 a keyword), the rating of each site on it (GoAnyAPI, $0.002 a site, kept 30 days) and the keyword difficulty ($0.012 a call). With a GoAnyAPI key also who already builds for the term and who pays for it: the pages Google holds with it in the title from the last month (`pages built`) and the domains running Google ads on it (`advertisers`, from Ads transparency), $0.008 a row. `open` = three or more of the ten results sit on sites rated under 30, or difficulty under 20; `crowded` = none does and difficulty is 40 or more; `mixed` in between. Under the table it names the weakest site on page one, where a new page can get in, and what kinds of pages hold it (tools, lists, articles, videos, forums). Ads on the page mean someone pays for that click. Recorded only, in report.json as `page_age` and not used in any decision yet: how old the sites on page one are (each domain's registration, from RDAP, free) and which results entered the top 10 since the reading before, to check later whether a page one with young sites on it is one a new site gets onto.
+
+7. **Word age**, for the prioritize and watch rows: the term's Trends interest over five years (one point a week); the first week with any interest is `First searched`, and 🆕 marks a term first searched in the last 180 days. A new term's page one is read one step easier (crowded → mixed, mixed → open): difficulty scores and site ratings are made from pages written for something else and lag a word nobody searched half a year ago. The week still running and Trends' unsettled last two days are left out, so a "0, 100" tail cannot make an old word look new. One Trends task a row, $0.0012. A term made of words people searched before ("nano banana" reads a little interest in 2021) is dated by those older searches.
+8. **Markets**, for the same rows: Google Ads monthly searches in each market of `markets.codes` (US, DE, FR, JP by default; all languages) and, with `difficulty` on, the keyword difficulty there, in one compact cell: `best DE · US 5k/50 · DE 900/5 · FR 300 · JP 0 · top Germany`. `best` = the most searches per point of difficulty when every market with searches has a difficulty, else the most searches. `top` = the country where Trends interest is highest, among the major markets (Trends measures a share of local searches, and on its own puts Sint Maarten first). About $0.41 a run with the defaults (a $0.09 volume call per market, about $0.012 a difficulty call), plus $0.0024 a row for the top region.
+9. **Page-one shape**, for the prioritized rows: the live top ten (US / en / desktop by default; the page-one check's own results are reused, so it usually costs nothing extra, otherwise about $0.002 a term) read as homepages against inner pages, results on high-authority platforms (`serp_shape.platforms`: github.com, medium.com, sites.google.com, `*.github.io`, reddit.com, youtube.com, wikipedia.org) and titles that hold the keyword. `platform-held` = half or more on platforms; `beatable` = mostly inner pages and no exact-match homepage (a homepage titled with the term, or whose domain spells it); `contested` otherwise. Under the table it lists the URL and title of #1 and #2.
+
+Each of the three has `"enabled": false` in its config block to turn it off. On 2026-10-18, for "photocraft" (prioritize) and "ai image detector" (watch), they read: first searched 2026-10-04 🆕 and 2023-02-19; best market US for both (74k searches and KD 37 for "ai image detector"); page one of "photocraft" `beatable · 1 home / 6 inner · 2 platform · exact title ×6`, held at #1 by the GitHub repository. The run cost $0.42.
+
+Four more readings came in 0.6.0 too. None of them buys anything: they read what the volume call and the page-one check already brought back, your own Search Console, and the .com registry.
+
+10. **12 months** (`year_curve`), every row with Google Ads data: the volume call already carries each phrase's last twelve months. The column draws them as bars on the term's own scale from zero and adds a word: `new since` (barely searched a year ago), `peaked` (a burst past its top: twice its median month or more, at half of it or less now), `falling`, `rising` (the last three months against the three before, ±30%) or `steady`; under 50 searches in its best month it says `few searches`, since Google Ads rounds small volumes. The newest month is one to two months behind. On 2026-10-20 "claude skills" read `peaked 2026-03, now -80%` (90,500 a month at the top, 18,100 in 2026-09), "best claude skills" `new since 2026-01 · falling, -47% in 6 mo`, and "skill md" `steady`.
+11. **Your rank** (`yours`), for the prioritize and watch rows: your sites (`yours.domains`, else the domain of the Search Console property in `gsc.site`) looked for in the page-one check's ten results and, with `gsc` set, in Search Console (average position, impressions and clicks for the exact query over 28 days, one call for all rows). The decision cell then says what to do: `→ update yours` (on page one by either), `→ improve yours` (a Search Console average of 11 to 30), `→ new page` (not found, or further down), and your pages are listed under the table. A rising term you already rank for is an update, not a new page. On 2026-10-20 one of our sites showed for one term at an average of 23.5 (improve that page) and for another at 89 with one impression, on its homepage (a new page).
+12. **What else holds page one**, from the page-one check: its cell now names an AI overview, an answer box, a forums block, videos or news, and under the table come the forum threads on page one, best-of searches first: an answer there reaches the people searching. When Google shows an AI summary, people click a result about half as often (Pew Research Center, 2025: on 8% of visits against 15%). All five "claude skills" terms read on 2026-10-20 had an AI overview.
+13. **Exact-match .com** (`dot_com`), for the prioritized rows, names first: the joined and hyphenated forms asked of the registry's RDAP (Verisign), free. Not registered is not always the usual price: registrars hold some names back or sell them as premium. Of the ten forms of five "claude skills" terms, one was free on 2026-10-20.
+
+Each has `"enabled"` in its own config block; the page-one marks come with the page-one check. On 2026-10-20 five terms cost $0.11 in all, which was the volume call and the page-one check.
 
 Searches a day are estimates. A generic term's come from its own Google Ads volume, moved to today along its own Trends curve. The benchmark is then sized from those terms, and a name, which has no volume data yet, is sized against the benchmark.
 
@@ -106,7 +124,7 @@ What to expect from it, from the first eight names we ran it on:
 - **The names rose; most generic terms did not, within five days.** PhotoCraft, Claude Haiku 5.5 and SynthID Detector all climbed clearly. Of the generic terms behind them, one moved: "photoshop alternative" ran about 80% above its level in the US for five days after PhotoCraft appeared. The worldwide daily series the table reads showed almost nothing of it (2, 1, 1, 2, 4, 2); a US daily series from another source showed it plainly. So a flat reading from the worldwide series does not prove a term did not move. With a GoAnyAPI key the bigger rows are read from the one-country series instead, where a rise is 1.5 times the earlier level held for three days; the same run then shows "photoshop alternative" as `still rising (US)`.
 - The table's dependable use today is to tell you **which existing demand a new thing serves and how big it is** ("ai image detector", about 2,500 searches a day). Whether generic terms follow the names is what the 14-day review will show, and we have no result yet.
 - For pure model releases (Claude Haiku 5.5, Nano Banana 2.1) the evidence was announcements and benchmarks, and the phrases proposed were weak ("ai coding assistant"). It works better for products and repositories that do one job.
-- **Google Trends' last two days are not settled.** For unrelated terms they came back as 0 and then 100, which reads as a spike. Our first pass was fooled by exactly this; every reader in the code now drops those two days, and a rise must last two days to count.
+- **The worldwide Trends series' last two days are not settled.** For unrelated terms they came back as 0 and then 100, which reads as a spike. Our first pass was fooled by exactly this; every reader in the code now drops those two days, and a rise must last two days to count.
 - Google Ads volumes run about two months behind. Trends reads nothing reliable for terms under a few hundred searches a month.
 
 ### When a source is missing or down
@@ -136,6 +154,8 @@ TrustMRR's API terms forbid republishing its data and building public SEO pages 
 
 Once a week the radar searches Reddit for a dozen ways people ask for a tool ("is there an AI tool", "I wish there was a tool", "how do I automate", in `asks.patterns`), keeps the posts of the last week with a score of 2 or more, and has a small model sort them: a request, a complaint, a shared solution, or other. For requests and complaints an AI tool could answer, it writes the job the way a person would search it ("add b roll automatically", "convert slides to notes"). Jobs with at least 50 searches a month are listed with their posts and get the page-one check; each becomes a lead. Most asks are too specific to have searches yet: the first real week, 84 posts held 43 asks and only two had 50 searches a month ("best ai tool for research", from a 1,034-point r/PhD thread, and "best ai tool for coding"). So the best-scored of the others are listed too, as ideas rather than keywords. A month of posts read in a trial held a request for "an AI tool to convert PowerPoint lecture slides into notes", the same job a tool-site course uses as its worked example.
 
+With `ai_answers` on (off by default; about $0.004 an answer), the jobs with searches are also put to ChatGPT, as the answer its own interface gives with search (DataForSEO's LLM scraper), and with `"engines": ["chatgpt", "google"]` to Google's AI Mode, as "What is the best tool to {job}?". A column says which tools the answers name; under the table come the sites they cite, and ✅ when one is yours. An answer that names no tool is a gap a new tool can fill in AI search; the cited sites are the pages AI search reads for the job: get listed there, or write the comparison against them. On 2026-10-20, for "convert powerpoint slides to notes", ChatGPT named Google NotebookLM, ChatGPT and Microsoft Copilot, and AI Mode listed Knowt, NoteGPT and Microsoft Copilot among others.
+
 Posts are for your own research: quote them, do not republish them.
 
 ### ⑧ Sellers: who just started taking money
@@ -151,7 +171,8 @@ A new link is not a new seller. A first version took the newest links for new se
 ```bash
 python -m radar history pull            # every site linking to the five platforms today: about $18
 python -m radar history read            # their home-page titles and descriptions, free
-python -m radar history sort            # their kind, by a small model: about $0.005 for 60 sites
+python -m radar history sort            # their kind, by a small model: about $0.005 for 60 sites (--rules: keywords alone, free)
+python -m radar history update          # weekly: the sellers that appeared since the newest day, about $0.5
 python -m radar history --out sellers.csv
 ```
 
@@ -168,6 +189,13 @@ How far back it goes, from the link graph's monthly count of sites linking for t
 | Creem | 2025 | 1,708 | 74 to 268 | 1,449 |
 
 Two cautions. In October 2023 Stripe's count jumped from 3,216 to 16,206, and new links from 1.2 million to 20 million the month after: the crawler grew, not the sellers. And a pull holds only sites that still link, so the older the month, the more of its sellers are missing. For Gumroad, Lemon Squeezy and Creem the monthly counts also include links to their own sites and to profiles; the pull keeps those apart (only payment links count as sellers).
+
+### ⑧b, ⑨, ⑩ and the evidence beside the names
+
+- **⑧b Builders** (weekly, with ⑧): the badge an AI app builder puts on what it made ("Edit with Lovable", "Built with v0") and the "Powered by beehiiv" link of a new newsletter, read from the same link graph. Most of what people build with an app builder is a business's website (a pizzeria, a lawn service); only the software among them becomes a lead, the rest says what the builder is used for.
+- **⑨ Just listed** (daily; the paid lists weekly): each list's new entries since the radar last read it (a first run only takes the snapshot, and lists what the source itself dates as recent). The sites behind Figma, There's An AI For That and the Chrome Web Store are not read: Google's index of their new pages is.
+- **⑩ Money** (weekly, GoAnyAPI): a site that earns from ads names its AdSense ID in its ads.txt, and the same ID on other domains is its owner's other sites, each a niche someone already makes money in. The sites asked about are the tool sites on page one for the day's terms and the paying products of ⑥ and ⑧. An advertiser new on one of your `ad_terms` has just decided the term is worth money.
+- **Beside the names**: people register sites on a name before search engines list them, so the newest domains carrying a name (whois for the first two names, HTTPS certificates for the rest), its Wikipedia views against the week before, Google's own type for it ("AI agent" means Google knows the thing; a name Google knows only as something else is taken) and Discord servers about it. For a paying product, the searches for its alternatives, comparisons and price are a market someone already proved.
 
 ### ⚡ What tutorial viewers ask for
 
@@ -187,7 +215,7 @@ What it cannot read: App Store, Google Play and Trustpilot reviews (DataForSEO s
 
 ## One key, and an optional second
 
-Everything the radar needs goes through [AIsa](https://go.aisa.one/yansen-zhu): X posts, Google Trends and domain data (DataForSEO behind it) and the models that judge names and propose phrases. One key, pay per call, no subscriptions to X's API or DataForSEO.
+Everything the radar needs goes through [AIsa](https://go.aisa.one/yansen-zhu): X posts, DataForSEO Trends (DataForSEO's estimate of Google search interest, not Google Trends itself) and domain data, and the models that judge names and propose phrases. One key, pay per call, no subscriptions to X's API or DataForSEO.
 
 > That link is a referral link: signing up through it supports this project. The radar works the same with a key from anywhere on aisa.one.
 
@@ -233,7 +261,7 @@ From a real run on 2026-10-12 (shortened):
 
 Other rising terms (judged common words): anatomy, math, iphone use
 
-### ⑤ Review (terms reported 14 days ago: did they rise in Google Trends?)
+### ⑤ Review (terms reported 14 days ago: did they rise in DataForSEO Trends?)
 
 | Term | First reported | Verdict | Days ahead |
 | strata | 2026-09-25 | hit | 3 |
@@ -263,7 +291,14 @@ and from `sources`:
 | `new_sites` | `queries`: a name and a SQL LIKE pattern on the domain (`"%ai%"`), one paid query each; `weekday` (0 = Monday) |
 | `review` | `after_days` (14) and `per_day` (5 leads a day) |
 | `usecases` | The keyword table. `per_day` (names read a day, 0 = off), `model`, `benchmark` (the keyword sizes are compared with), `min_volume` (monthly searches a phrase needs), `min_daily` (searches a day for "prioritize"), `recheck_days` (3), `related` (use related queries when `GOANYAPI_API_KEY` is set), `related_geo` (`US`), `country_trends` (read the bigger rows' curves from that country), `country_min_volume` (1000) and `country_max` (8) |
-| `gsc` | `site` (`sc-domain:example.com`) and `token_file`. Leave `{}` to turn the signal off |
+| `word_age` | `enabled`, `time_range` (`past_5_years`, the longest the Trends source offers), `new_days` (180: first searched within this many days = 🆕, read one step easier on page one) |
+| `markets` | `enabled`, `codes` (`["US", "DE", "FR", "JP"]`; built in: US, GB, CA, AU, IN, DE, FR, ES, IT, NL, BR, JP, KR), `difficulty` (per-market keyword difficulty), `top_region` (the Trends top country), `locations` (more markets: `{"MX": [2484, "es"]}`, a Google Ads location code and a language) |
+| `serp_shape` | `enabled`, `location_code` (2840), `language_code` (`en`), `device` (`desktop`), `platforms` (domains that count as high-authority platforms; `*.github.io` means its subdomains) |
+| `yours` | `enabled`, `domains` (your sites; empty = the Search Console property's domain), `days` (28: the Search Console window) |
+| `year_curve` | `enabled`: the twelve-month column, from the volume call (free) |
+| `dot_com` | `enabled`, `max_rows` (8: prioritized rows checked a run, names first) |
+| `ai_answers` | `enabled` (`false`: it costs about $0.004 an answer), `engines` (`["chatgpt"]`; add `"google"` for AI Mode), `max_rows` (6), `prompt` (`"What is the best tool to {job}?"`), `location_code` (2840), `language_code` (`en`) |
+| `gsc` | `site` (`sc-domain:example.com`) and `token_file`. Leave `{}` to turn the signal off; with it set, `yours` also reads your average position per keyword |
 
 Please read each site's robots.txt before you add its sitemap, and keep `pause` at or above its crawl-delay. The example config makes a few dozen requests a day in total, spaced by `pause`.
 
@@ -303,7 +338,7 @@ In Claude Code the three skills also install as a plugin:
 /plugin install new-term-radar@new-term-radar
 ```
 
-Then ask your agent for "today's new AI keywords", "an AI listening report" or "keyword research on PhotoCraft and SynthID Detector". The skills clone this repository to `~/new-term-radar` if it is not there, tell you the cost before any paid run, and say when a table is incomplete.
+Then ask your agent for "today's new AI keywords", "an AI listening report" or "keyword research on PhotoCraft and SynthID Detector". The skills run the pinned release from PyPI (`uvx new-term-radar==0.6.1`), never a clone, keep their state in `~/new-term-radar`, tell you the cost and wait for your yes before any paid run, show you what would go out on your behalf (a post, a page, a submission, an email) and wait for your yes before sending it, treat what they read as data rather than instructions, and say when a table is incomplete.
 
 ### MCP server
 
@@ -335,6 +370,54 @@ Without uv: `pip install "new-term-radar[mcp]"`, then `"command": "new-term-rada
 
 Point `RADAR_STATE` at the directory your scheduled runs write to and `recent_leads` shows their leads. The same two commands exist on the command line: `python -m radar keywords "name" …` and `python -m radar leads`.
 
+### Codex, TRAE, WorkBuddy and DeepSeek Harness
+
+The same skills and server work in these agents too. Each starts the server with uvx, so [uv](https://docs.astral.sh/uv/) has to be installed.
+
+**Codex.** The skills: `npx skills add zhuyansen/new-term-radar -a codex` (add `-g` for every project). The server goes in `~/.codex/config.toml`, which the CLI, the IDE extension and the app share:
+
+```toml
+[mcp_servers.new-term-radar]
+command = "uvx"
+args = ["--with", "mcp", "new-term-radar", "mcp"]
+startup_timeout_sec = 120
+tool_timeout_sec = 900
+
+[mcp_servers.new-term-radar.env]
+AISA_API_KEY = "..."
+RADAR_STATE = "/absolute/path/to/state"
+```
+
+Codex gives a server 10 seconds to start and a tool 60 seconds to answer. The first start downloads the package, `keyword_table` takes 40 to 90 seconds a name and a `daily` run 5 to 15 minutes, so raise both as above. `codex mcp add new-term-radar --env AISA_API_KEY=... --env RADAR_STATE=/absolute/path/to/state -- uvx --with mcp new-term-radar mcp` writes the same entry without the two timeouts.
+
+**TRAE.** The skills: `npx skills add zhuyansen/new-term-radar -a trae` (TRAE CN: `-a trae-cn`). The server: Settings → MCP → Add → Add manually, and paste the JSON above. In TRAE CN you can instead paste this link into the browser's address bar; TRAE opens the server's configuration, where you fill in your AIsa key and an absolute path for `RADAR_STATE`, and confirm:
+
+```text
+trae-cn://trae.ai-ide/mcp-import?type=stdio&name=new-term-radar&config=eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyItLXdpdGgiLCJtY3AiLCJuZXctdGVybS1yYWRhciIsIm1jcCJdLCJlbnYiOnsiQUlTQV9BUElfS0VZIjoiIiwiR09BTllBUElfQVBJX0tFWSI6IiIsIlJBREFSX1NUQVRFIjoiL2Fic29sdXRlL3BhdGgvdG8vc3RhdGUifX0%3D
+```
+
+**WorkBuddy.** Put the JSON above in `~/.workbuddy/mcp.json`, or paste it under Plugins → MCP servers → Configure MCP.
+
+**DeepSeek Harness.** The skills: `npx skills add zhuyansen/new-term-radar -a codex` installs them in `.agents/skills` (with `-g`, in `~/.agents/skills`), where DeepSeek Harness looks too. The server goes in `~/.dsh/cordis.patch.yml` for every profile, or `~/.dsh/profiles/<name>/cordis.patch.yml` for one:
+
+```yaml
+- insert:
+    - id: new-term-radar
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: new-term-radar
+        transport: stdio
+        command: uvx
+        args: ['--with', 'mcp', 'new-term-radar', 'mcp']
+        env:
+          AISA_API_KEY: !!js process.env.AISA_API_KEY ?? ''
+          GOANYAPI_API_KEY: !!js process.env.GOANYAPI_API_KEY ?? ''
+          RADAR_STATE: /absolute/path/to/state
+        toolCallTimeoutMs: 900000
+```
+
+DeepSeek Harness does not pass the variables that look like keys on to a server, so the keys are named under `env`, read here from your environment. Keep the `?? ''`: without it a variable that is not set fails the entry's check and the server does not start; an empty key counts as no key. A tool gets 60 seconds unless `toolCallTimeoutMs` gives more; a `daily` run needs the 15 minutes above. `dsh web --dump-config` prints the composed entry without starting anything. Tried with DeepSeek Harness 0.2.1-rc.2.
+
 ## Run it on GitHub Actions
 
 `.github/workflows/radar.yml` runs `sources` every 8 hours and `daily` once a day, keeps the state in the Actions cache, and writes each report to the run summary. It is off until you opt in:
@@ -359,7 +442,6 @@ Point `RADAR_STATE` at the directory your scheduled runs write to and `recent_le
 
 ## Known issues
 
-- **New sites (2026-10-12)**: AIsa's validation for `post_dataforseo_domains_whois_overview_live` currently rejects the filter format DataForSEO requires, so this signal reports an error and the rest of the report is unaffected. It worked until 2026-10-06. Use `--skip newsites` to silence it until that is fixed upstream.
 - The built-in stop words and the Hugging Face name cleaning are tuned for AI models and agent tooling. For another field, add `stop_words`.
 - Search volumes are not in the report. The radar tells you a name is new; check volume and the top results before you build a page for it.
 

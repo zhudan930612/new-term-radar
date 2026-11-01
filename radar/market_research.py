@@ -150,7 +150,9 @@ def command(result_path: Path, cfg: dict, state: Path, output: Path | None = Non
             initial_actual = sum(e.get("actual_usd", 0) for e in journal.entries)
             session = EvidenceSession(journal, root)
             research_cfg = copy.deepcopy(cfg)
-            research_cfg["competition"].update(max_rows=3, location_code=2840)
+            # RDAP age collection belongs to the independent keyword workflow;
+            # do not expand the Web report's frozen verification/network scope.
+            research_cfg["competition"].update(max_rows=3, location_code=2840, page_age=False)
             with aisa.managed_requests(session):
                 total_micros, errors = competition.assess(rows, research_cfg, state / "market-research")
             if errors:

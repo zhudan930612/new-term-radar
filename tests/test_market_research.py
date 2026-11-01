@@ -75,8 +75,9 @@ def test_no_queries_before_context_and_intent_gates(setup, tmp_path, monkeypatch
     assert read(path)["status"] == result["status"]
 
 
-def test_managed_paid_evidence_optional_gaps_and_no_duplicate_calls(setup, tmp_path):
+def test_managed_paid_evidence_optional_gaps_and_no_duplicate_calls(setup, tmp_path, monkeypatch):
     path, cfg, calls = setup
+    monkeypatch.setattr(competition.page_age, "record", lambda *a: pytest.fail("Web research must not expand to RDAP"))
     assert research.command(path, cfg, tmp_path) == 0
     result = read(path)
     stage = result["market_research"]
